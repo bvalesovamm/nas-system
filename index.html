@@ -69,6 +69,8 @@
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
 html, body { height: 100%; }
+html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
+body { overflow-x: hidden; }
 body {
   font-family: var(--sans);
   font-size: 14px;
@@ -946,6 +948,8 @@ mark { background: var(--yellow-bg); color: var(--ink); padding: 0 2px; border-r
 .hub-title { font-family: var(--serif); font-size: 34px; font-weight: 600; color: var(--ink); letter-spacing: -0.02em; }
 .hub-subtitle { color: var(--ink-muted); margin-top: 6px; font-size: 14px; }
 .hub-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 18px; }
+.hub-quickadd { text-align: center; margin-top: 22px; }
+.hub-quickadd .btn { padding: 11px 22px; }
 .hub-tile { position: relative; background: var(--bg-card); border: 1px solid var(--line); border-radius: var(--radius-lg); padding: 24px 22px 24px 26px; cursor: pointer; box-shadow: var(--shadow); transition: transform .12s ease, box-shadow .12s ease, border-color .12s ease; overflow: hidden; }
 .hub-tile:hover { transform: translateY(-2px); box-shadow: var(--shadow-lg); border-color: var(--line-strong); }
 .hub-tile .tile-bar { position: absolute; left: 0; top: 0; bottom: 0; width: 5px; background: var(--accent); }
@@ -1036,12 +1040,42 @@ mark { background: var(--yellow-bg); color: var(--ink); padding: 0 2px; border-r
 
 @media (max-width: 900px) {
   .app { grid-template-columns: 1fr; }
-  .sidebar { position: relative; height: auto; }
-  .main { padding: 24px 20px 80px; }
+  .main { padding: 20px 16px 90px; max-width: 100%; }
   .tiles { grid-template-columns: repeat(2, 1fr); }
   .grid-2, .grid-3 { grid-template-columns: 1fr; }
   .dl { grid-template-columns: 1fr; gap: 4px; }
   .dl dt { margin-top: 8px; }
+
+  /* Boční menu -> kompaktní lepkavá horní lišta */
+  .sidebar {
+    position: sticky; top: 0; z-index: 30;
+    height: auto; overflow: visible;
+    border-right: none; border-bottom: 1px solid var(--line);
+    padding: 10px 0 8px;
+    background: var(--bg-card);
+  }
+  .sidebar-header { display: none; }
+  .sidebar-footer { display: none; }
+  .btn-hub { margin: 0 12px 8px; width: calc(100% - 24px); }
+  .nav { padding: 0 12px; display: flex; flex-wrap: nowrap; gap: 6px; overflow-x: auto; -webkit-overflow-scrolling: touch; scrollbar-width: none; }
+  .nav::-webkit-scrollbar { display: none; }
+  .nav-section { display: none; }
+  .nav-item { flex: 0 0 auto; white-space: nowrap; padding: 9px 13px; }
+
+  /* Tabulky: menší odsazení, ať se vejdou */
+  .tbl { font-size: 12px; }
+  .tbl th, .tbl td { padding: 8px 9px; }
+
+  /* Větší doteky a čitelnost */
+  .page-title { font-size: 22px; }
+  .btn, .filter-btn { min-height: 38px; }
+  .appt-cards { grid-template-columns: 1fr; }
+  .kanban { grid-template-columns: 1fr; }
+}
+@media (max-width: 480px) {
+  .tiles { grid-template-columns: 1fr; }
+  .main { padding: 16px 12px 90px; }
+  .cal-grid { font-size: 12px; }
 }
 </style>
 </head>
@@ -1049,8 +1083,8 @@ mark { background: var(--yellow-bg); color: var(--ink); padding: 0 2px; border-r
 <!-- Heslo obrazovka -->
 <div class="auth-screen" id="authScreen">
   <div class="auth-card">
-    <div class="auth-title">Plán péče</div>
-    <div class="auth-subtitle">Martin · zadej heslo pro přístup</div>
+    <div class="auth-title">Náš systém</div>
+    <div class="auth-subtitle">Rodinný hub · zadej heslo pro přístup</div>
     <input type="password" class="auth-input" id="authInput" placeholder="Heslo" autofocus>
     <button class="auth-btn" onclick="tryUnlock()">Odemknout</button>
     <div class="auth-error" id="authError"></div>
@@ -1072,6 +1106,9 @@ mark { background: var(--yellow-bg); color: var(--ink); padding: 0 2px; border-r
       <div class="hub-subtitle">Rodinný hub · vyber, co chceš řešit</div>
     </div>
     <div class="hub-grid" id="hubTiles"></div>
+    <div class="hub-quickadd">
+      <button class="btn primary" onclick="addTask()">+ Rychlý úkol</button>
+    </div>
     <div id="hubCalendar" style="margin-top:36px"></div>
     <div class="hub-footer">
       <button class="btn-io" onclick="exportData()">↓ Záloha (JSON)</button>
@@ -1084,8 +1121,8 @@ mark { background: var(--yellow-bg); color: var(--ink); padding: 0 2px; border-r
   <!-- ===== SIDEBAR ===== -->
   <aside class="sidebar">
     <div class="sidebar-header">
-      <div class="sidebar-title">Plán péče</div>
-      <div class="sidebar-subtitle">Martin · v3 · květen 2026</div>
+      <div class="sidebar-title">Náš systém</div>
+      <div class="sidebar-subtitle">Péče — Martin</div>
     </div>
 
     <button class="btn-hub" onclick="goHub()">🏠 Hub — všechny moduly</button>
@@ -2057,6 +2094,7 @@ function saveModal() {
   closeModal();
   save();
   renderAll();
+  if (!currentModule) renderHub();
 }
 
 document.addEventListener("keydown", e => {
