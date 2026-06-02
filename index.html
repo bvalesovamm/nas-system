@@ -974,6 +974,39 @@ mark { background: var(--yellow-bg); color: var(--ink); padding: 0 2px; border-r
 .kan-note { font-size: 12px; color: var(--ink-muted); line-height: 1.45; margin-top: 4px; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
 .kan-meta { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-top: 8px; }
 .kan-date { font-size: 12px; color: var(--ink-soft); font-weight: 600; }
+.kan-subs { margin-top: 7px; display: flex; flex-direction: column; gap: 5px; }
+.kan-sub { display: flex; align-items: flex-start; gap: 8px; cursor: pointer; }
+.kan-sub-box { flex: 0 0 15px; width: 15px; height: 15px; border: 2px solid var(--line-strong); border-radius: 4px; margin-top: 2px; transition: all .12s; }
+.kan-sub:hover .kan-sub-box { border-color: var(--accent); background: var(--accent-soft); }
+.kan-sub-txt { font-size: 13px; line-height: 1.4; color: var(--ink); }
+.kan-sub-more { font-size: 12px; color: var(--ink-muted); padding-left: 23px; font-style: italic; }
+.kan-prog { font-size: 12px; color: var(--ink-soft); font-weight: 700; background: var(--bg-elev); padding: 1px 7px; border-radius: 9px; }
+.sub-edit-row { display: flex; align-items: center; gap: 9px; margin-bottom: 8px; }
+.sub-edit-box { flex: 0 0 19px; width: 19px; height: 19px; border: 2px solid var(--line-strong); border-radius: 5px; cursor: pointer; }
+.sub-edit-box.done { background: var(--accent); border-color: var(--accent); }
+.sub-edit-input { flex: 1; min-width: 0; padding: 8px 11px; border: 1px solid var(--line); border-radius: var(--radius); font: inherit; background: var(--bg-card); color: var(--ink); }
+.sub-edit-input.done { text-decoration: line-through; color: var(--ink-muted); }
+
+/* DOMÁCNOST */
+.house-grid { display: flex; flex-direction: column; gap: 18px; }
+.house-room { background: var(--bg-elev); border: 1px solid var(--line); border-radius: var(--radius-lg); padding: 12px 14px; }
+.house-room-head { display: flex; align-items: center; justify-content: space-between; font-weight: 700; font-size: 13px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--ink-soft); padding: 2px 2px 12px; }
+.house-room-sum { color: var(--accent); font-size: 13px; }
+.house-card-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }
+.house-price { flex: 0 0 auto; font-weight: 700; font-size: 14px; color: var(--ink); white-space: nowrap; }
+.energy-head, .energy-row { display: grid; grid-template-columns: 1.1fr 1fr 1.5fr 1fr; gap: 10px; align-items: center; padding: 11px 14px; }
+.energy-head { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: var(--ink-muted); border-bottom: 1px solid var(--line); }
+.energy-row { background: var(--bg-card); border: 1px solid var(--line); border-radius: var(--radius); margin-bottom: 8px; cursor: pointer; transition: box-shadow .12s; }
+.energy-row:hover { box-shadow: var(--shadow); }
+.energy-date { font-weight: 600; }
+.energy-val { font-variant-numeric: tabular-nums; }
+.energy-delta { color: var(--ink-soft); font-size: 13px; }
+.energy-cost { text-align: right; font-weight: 700; font-variant-numeric: tabular-nums; }
+@media (max-width: 700px) {
+  .energy-head { display: none; }
+  .energy-row { grid-template-columns: 1fr 1fr; row-gap: 4px; }
+  .energy-cost { text-align: left; }
+}
 @media (max-width: 900px) { .kan-col { flex: 0 0 82%; max-width: 82%; } }
 .hub-inner { max-width: 920px; margin: 0 auto; }
 .hub-head { text-align: center; margin-bottom: 40px; }
@@ -1161,11 +1194,22 @@ mark { background: var(--yellow-bg); color: var(--ink); padding: 0 2px; border-r
   </div>
 </div>
 
+<!-- Obrazovka DOMÁCNOST -->
+<div class="module-screen" id="domacnostScreen">
+  <div class="module-inner">
+    <div class="module-head">
+      <button class="btn-hub-back" onclick="goHub()">🏠 Hub</button>
+      <div class="module-title">🏡 Domácnost</div>
+    </div>
+    <div id="domacnostBody"></div>
+  </div>
+</div>
+
 <!-- Obrazovka ZÁLOHY -->
 <div class="module-screen" id="backupScreen">
   <div class="module-inner">
     <div class="module-head">
-      <button class="btn-hub-back" onclick="closeBackups()">← Hub</button>
+      <button class="btn-hub-back" onclick="closeBackups()">🏠 Hub</button>
       <div class="module-title">↺ Zálohy</div>
     </div>
     <div id="backupBody"></div>
@@ -1176,9 +1220,7 @@ mark { background: var(--yellow-bg); color: var(--ink); padding: 0 2px; border-r
 <div class="module-screen" id="tasksScreen">
   <div class="module-inner">
     <div class="module-head">
-      <button class="btn-hub-back" onclick="goHub()">← Hub</button>
-      <div class="module-title">✅ Úkoly</div>
-      <button class="btn-io" style="margin-left:auto" onclick="importTasksFromJson()">↥ Import (JSON)</button>
+      <button class="btn-hub-back" onclick="goHub()">🏠 Hub</button>
     </div>
     <div id="tasksBody"></div>
   </div>
@@ -1268,6 +1310,8 @@ const SEED = {
   "diagnoses": [],
   "tasks": [],
   "adminTasks": [],
+  "houseWorks": [],
+  "energy": { "settings": { "pricePerM3": 0, "fixedPerYear": 0, "unit": "m³" }, "readings": [] },
   "examinations": [],
   "genetics": {
     "summary": "",
@@ -1508,6 +1552,8 @@ function loadData() {
       // Ensure v4 fields exist (backwards compat for older cloud data)
       if (!DB.exerciseLog) DB.exerciseLog = [];
       if (!DB.adminTasks) DB.adminTasks = [];
+      if (!DB.houseWorks) DB.houseWorks = [];
+      if (!DB.energy) DB.energy = { settings: { pricePerM3: 0, fixedPerYear: 0, unit: "m³" }, readings: [] };
       if (!DB.meta) DB.meta = { version: 1 };
       migrateAssignees(DB);
     }
@@ -1521,6 +1567,8 @@ function loadData() {
       // Backwards compat
       if (!remoteData.exerciseLog) remoteData.exerciseLog = [];
       if (!remoteData.adminTasks) remoteData.adminTasks = [];
+      if (!remoteData.houseWorks) remoteData.houseWorks = [];
+      if (!remoteData.energy) remoteData.energy = { settings: { pricePerM3: 0, fixedPerYear: 0, unit: "m³" }, readings: [] };
       if (!remoteData.meta) remoteData.meta = { version: 1 };
       migrateAssignees(remoteData);
       // Update DB jen pokud se opravdu změnilo (jinak by uložení vlastních dat smyklo render)
@@ -1699,6 +1747,9 @@ function openModal(title, fields, onSave) {
       return `<div class="field"><label>${esc(f.label)}</label><input type="text" list="dl-${f.key}" data-key="${f.key}" value="${val}" placeholder="${esc(f.placeholder || "")}" autocomplete="off"><datalist id="dl-${f.key}">${opts}</datalist></div>`;
     } else if (f.type === "date") {
       return `<div class="field"><label>${esc(f.label)}</label><input type="date" data-key="${f.key}" value="${val}"></div>`;
+    } else if (f.type === "subtasks") {
+      modalState.subtasks = (Array.isArray(f.value) ? f.value : []).map(s => ({ text: s.text || "", done: !!s.done }));
+      return `<div class="field"><label>${esc(f.label)}</label><div id="subtaskEditor">${renderSubtaskEditor()}</div><button type="button" class="btn" style="margin-top:8px" onclick="modalAddSubtask()">+ Přidat položku</button></div>`;
     } else {
       return `<div class="field"><label>${esc(f.label)}</label><input type="text" data-key="${f.key}" value="${val}"></div>`;
     }
@@ -1712,10 +1763,45 @@ function closeModal() {
   modalState = null;
 }
 
+function renderSubtaskEditor() {
+  const subs = (modalState && modalState.subtasks) || [];
+  if (!subs.length) return `<div style="font-size:12px;color:var(--ink-muted);padding:4px 0">Zatím žádné položky.</div>`;
+  return subs.map((s, i) => `
+    <div class="sub-edit-row">
+      <span class="sub-edit-box ${s.done ? 'done' : ''}" onclick="modalToggleSubtask(${i})" title="Hotovo / aktivní"></span>
+      <input type="text" class="sub-edit-input ${s.done ? 'done' : ''}" data-sub="${i}" value="${esc(s.text)}" placeholder="Popis položky…">
+      <button type="button" class="icon-btn" onclick="modalDelSubtask(${i})" title="Smazat položku">✕</button>
+    </div>`).join("");
+}
+function modalSyncSubtasks() {
+  if (!modalState || !modalState.subtasks) return;
+  document.querySelectorAll("#subtaskEditor [data-sub]").forEach(inp => {
+    const i = +inp.dataset.sub;
+    if (modalState.subtasks[i]) modalState.subtasks[i].text = inp.value;
+  });
+}
+function refreshSubtaskEditor() {
+  const box = document.getElementById("subtaskEditor");
+  if (box) box.innerHTML = renderSubtaskEditor();
+}
+function modalAddSubtask() {
+  modalSyncSubtasks();
+  modalState.subtasks.push({ text: "", done: false });
+  refreshSubtaskEditor();
+  const inps = document.querySelectorAll("#subtaskEditor [data-sub]");
+  if (inps.length) inps[inps.length - 1].focus();
+}
+function modalDelSubtask(i) { modalSyncSubtasks(); modalState.subtasks.splice(i, 1); refreshSubtaskEditor(); }
+function modalToggleSubtask(i) { modalSyncSubtasks(); modalState.subtasks[i].done = !modalState.subtasks[i].done; refreshSubtaskEditor(); }
+
 function saveModal() {
   if (!modalState) return;
   const data = {};
   $$("#modalFields [data-key]").forEach(el => { data[el.dataset.key] = el.value.trim(); });
+  if (modalState.subtasks) {
+    modalSyncSubtasks();
+    data.subtasks = modalState.subtasks.filter(s => (s.text || "").trim() !== "").map(s => ({ text: s.text.trim(), done: !!s.done }));
+  }
   modalState.onSave(data);
   closeModal();
   save();
@@ -2000,7 +2086,8 @@ function taskFormFields(store, t) {
     { key: "repeatFreq", label: "Opakování (odvodí se z data)", type: "select", options: REPEAT_OPTIONS, value: repeatFreqLabel(t.repeat) },
     { key: "priority", label: "Priorita", type: "select", options: ["Vysoká", "Střední", "Nízká", "Plánováno", "Stálé"], value: t.priority || "Střední" },
     { key: "status", label: "Status", type: "select", options: ["Otevřeno", "Hotovo", "Průběžně", "Zrušeno"], value: t.status || "Otevřeno" },
-    { key: "contact", label: "Poznámka", type: "textarea", value: t.contact || "" }
+    { key: "contact", label: "Poznámka (volitelné)", type: "textarea", value: t.contact || "" },
+    { key: "subtasks", label: "Položky", type: "subtasks", value: t.subtasks || [] }
   ];
 }
 
@@ -2009,7 +2096,9 @@ function applyTaskForm(t, data) {
   const assignee = data.assignee === "(nikdo)" ? "" : data.assignee;
   delete data.repeatFreq;
   const done = data.status === "Hotovo" || data.status === "Splněno";
-  const out = { ...t, ...data, assignee, repeat, done };
+  const subtasks = data.subtasks || t.subtasks || [];
+  delete data.subtasks;
+  const out = { ...t, ...data, assignee, repeat, subtasks, done };
   if (done && !out.completedDate) out.completedDate = new Date().toISOString().slice(0, 10);
   if (!done) out.completedDate = "";
   return out;
@@ -2056,6 +2145,7 @@ function normalizeImportedTask(t) {
     title: t.title || "", category: t.category || "", priority: t.priority || "Střední",
     deadline: t.deadline || "", dueDate: t.dueDate || "", assignee: t.assignee || "",
     repeat: t.repeat || null, status: t.status || "Otevřeno", contact: t.contact || "",
+    subtasks: Array.isArray(t.subtasks) ? t.subtasks.map(s => ({ text: s.text || "", done: !!s.done })) : [],
     done: !!t.done, completedDate: t.completedDate || ""
   };
 }
@@ -2212,20 +2302,46 @@ let taskView = "active";        // 'active' (kanban) | 'done' (splněno)
 function fmtDateShort(iso) {
   const d = parseDateIso(iso);
   if (!d) return "";
-  return d.getDate() + ". " + (d.getMonth() + 1) + ".";
+  return WEEKDAYS_CZ[d.getDay()] + " " + d.getDate() + ". " + (d.getMonth() + 1) + ".";
+}
+
+function toggleSubtask(store, ti, si) {
+  const t = taskList(store)[ti];
+  if (!t || !t.subtasks || !t.subtasks[si]) return;
+  t.subtasks[si].done = !t.subtasks[si].done;
+  save();
+  renderAll();
 }
 
 function taskCard(t, idx, store) {
   const isDone = t.done || t.status === "Hotovo" || t.status === "Splněno";
   const dateLbl = t.dueDate ? fmtDateShort(t.dueDate) : (t.deadline || "");
+  const subs = t.subtasks || [];
+  const open = subs.filter(s => !s.done);
+  const doneN = subs.length - open.length;
+  const SHOWN = 6;
+  let subHtml = "";
+  if (subs.length) {
+    subHtml = `<div class="kan-subs">` +
+      open.slice(0, SHOWN).map(s => {
+        const si = subs.indexOf(s);
+        return `<div class="kan-sub" onclick="event.stopPropagation();toggleSubtask('${store}',${idx},${si})"><span class="kan-sub-box"></span><span class="kan-sub-txt">${esc(s.text)}</span></div>`;
+      }).join("") +
+      (open.length > SHOWN ? `<div class="kan-sub-more">+ ${open.length - SHOWN} dalších…</div>` : "") +
+      (open.length === 0 ? `<div class="kan-sub-more">Vše hotovo ✓</div>` : "") +
+      `</div>`;
+  } else if (t.contact) {
+    subHtml = `<div class="kan-note">${esc(t.contact)}</div>`;
+  }
   return `
     <div class="kan-card" onclick="editTask('${store}',${idx})">
       <div class="kan-check ${isDone ? 'done' : ''}" onclick="event.stopPropagation();toggleTask('${store}',${idx})"></div>
       <div class="kan-cbody">
         <div class="kan-title ${isDone ? 'done' : ''}">${esc(t.title || '')}</div>
-        ${t.contact ? `<div class="kan-note">${esc(t.contact)}</div>` : ''}
+        ${subHtml}
         <div class="kan-meta">
           ${dateLbl ? `<span class="kan-date">📆 ${esc(dateLbl)}</span>` : ''}
+          ${subs.length ? `<span class="kan-prog">${doneN}/${subs.length}</span>` : ''}
           ${t.repeat ? `<span class="tag neutral">↻ ${esc(repeatLabel(t.repeat))}</span>` : ''}
           ${assigneeBadge(t.assignee)}
         </div>
@@ -2272,6 +2388,7 @@ function renderTasks(store) {
         <div class="page-subtitle">${openCnt} aktivních · ${doneCnt} splněných</div>
       </div>
       <div class="page-actions">
+        ${store === "admin" ? `<button class="btn" onclick="importTasksFromJson()">↥ Import (JSON)</button>` : ""}
         <button class="btn primary" onclick="addTask('${store}')">+ Nový úkol</button>
       </div>
     </div>
@@ -4287,7 +4404,7 @@ const MODULES = {
   },
   tasks:   { label: "Úkoly",     icon: "✅", color: "var(--red)",    status: () => (DB.adminTasks || []).filter(t => !t.done).length + " úkolů" },
   finance: { label: "Finance",   icon: "💰", color: "var(--green)",  soon: true },
-  home:    { label: "Domácnost", icon: "🏡", color: "var(--yellow)", soon: true }
+  home:    { label: "Domácnost", icon: "🏡", color: "var(--yellow)", status: () => { const a = (DB.houseWorks || []).filter(h => !h.done); return a.length + " prací · " + fmtCZK(a.reduce((s, h) => s + (+h.price || 0), 0)); } }
 };
 
 function renderHub() {
@@ -4494,6 +4611,10 @@ function enterModule(key) {
     document.getElementById("tasksScreen").classList.add("active");
     currentPage = "tasks";
     renderTasksModule();
+  } else if (key === "home") {
+    document.getElementById("app").classList.add("locked");
+    document.getElementById("domacnostScreen").classList.add("active");
+    renderDomacnostModule();
   }
 }
 
@@ -4502,6 +4623,8 @@ function goHub() {
   document.getElementById("app").classList.add("locked");
   const ts = document.getElementById("tasksScreen");
   if (ts) ts.classList.remove("active");
+  const ds = document.getElementById("domacnostScreen");
+  if (ds) ds.classList.remove("active");
   const bs = document.getElementById("backupScreen");
   if (bs) bs.classList.remove("active");
   document.getElementById("hubScreen").classList.add("active");
@@ -4515,6 +4638,286 @@ function renderTasksModule() {
   const sc = document.getElementById("tasksScreen");
   if (sc) sc.style.setProperty("--sec", "var(--red)");
   body.innerHTML = renderTasks("admin");
+}
+
+// ============================================================
+// MODUL DOMÁCNOST — Dům (práce + ceny) a Energie (odečty)
+// ============================================================
+
+let domacnostTab = "house"; // 'house' | 'energy'
+let houseView = "active";   // 'active' | 'done'
+
+function houseList() { if (!DB.houseWorks) DB.houseWorks = []; return DB.houseWorks; }
+function energyObj() {
+  if (!DB.energy) DB.energy = { settings: { pricePerM3: 0, fixedPerYear: 0, unit: "m³" }, readings: [] };
+  if (!DB.energy.settings) DB.energy.settings = { pricePerM3: 0, fixedPerYear: 0, unit: "m³" };
+  if (!DB.energy.readings) DB.energy.readings = [];
+  return DB.energy;
+}
+function fmtCZK(n) {
+  n = Math.round(+n || 0);
+  const s = String(Math.abs(n)).replace(/\B(?=(\d{3})+(?!\d))/g, " ");
+  return (n < 0 ? "-" : "") + s + " Kč";
+}
+function fmtNum(n, dec) {
+  const x = (+n || 0).toFixed(dec == null ? 1 : dec);
+  return x.replace(".", ",").replace(/\B(?=(\d{3})+(?!\d)\,)/g, " ");
+}
+
+function renderDomacnostModule() {
+  const body = document.getElementById("domacnostBody");
+  if (!body || !DB) return;
+  const sc = document.getElementById("domacnostScreen");
+  if (sc) sc.style.setProperty("--sec", "var(--yellow)");
+  body.innerHTML = renderDomacnost();
+}
+
+function renderDomacnost() {
+  const tabs = `
+    <div class="filters" style="margin-bottom:18px">
+      <button class="filter-btn ${domacnostTab === 'house' ? 'active' : ''}" onclick="domacnostTab='house'; renderAll()">🛠 Dům · práce a ceny</button>
+      <button class="filter-btn ${domacnostTab === 'energy' ? 'active' : ''}" onclick="domacnostTab='energy'; renderAll()">⚡ Energie · odečty</button>
+    </div>`;
+  return tabs + (domacnostTab === "energy" ? renderEnergy() : renderHouseWorks());
+}
+
+// ---- DŮM ----
+function renderHouseWorks() {
+  const list = houseList();
+  const isDone = h => h.done || h.status === "Hotovo";
+  const active = list.filter(h => !isDone(h));
+  const done = list.filter(isDone);
+  const sum = arr => arr.reduce((s, h) => s + (+h.price || 0), 0);
+
+  const head = `
+    <div class="page-header">
+      <div>
+        <div class="page-title">Dům — práce a ceny</div>
+        <div class="page-subtitle">${active.length} aktivních · odhad zbývá <b>${fmtCZK(sum(active))}</b> · celkem ${fmtCZK(sum(list))}</div>
+      </div>
+      <div class="page-actions">
+        <button class="btn" onclick="importDomacnostFromJson()">↥ Import (JSON)</button>
+        <button class="btn primary" onclick="addHouseWork()">+ Nová práce</button>
+      </div>
+    </div>
+    <div class="filters">
+      <button class="filter-btn ${houseView === 'active' ? 'active' : ''}" onclick="houseView='active'; renderAll()">Aktivní</button>
+      <button class="filter-btn ${houseView === 'done' ? 'active' : ''}" onclick="houseView='done'; renderAll()">Hotové · ${done.length}</button>
+    </div>`;
+
+  if (houseView === "done") {
+    return head + `<div class="list-wrap">${done.length ? done.map(h => houseRowDone(h, list.indexOf(h))).join("") : `<div class="empty">Žádné hotové práce</div>`}</div>`;
+  }
+
+  // skupiny dle místnosti, seřazené dle ceny (sestupně) uvnitř
+  const byRoom = {};
+  active.forEach(h => { const r = h.room || "(bez místnosti)"; (byRoom[r] = byRoom[r] || []).push(h); });
+  const rooms = Object.keys(byRoom).sort((a, b) => sum(byRoom[b]) - sum(byRoom[a]));
+  const sections = rooms.map(r => {
+    byRoom[r].sort((a, b) => (+b.price || 0) - (+a.price || 0));
+    return `
+      <div class="house-room">
+        <div class="house-room-head"><span>${esc(r)}</span><span class="house-room-sum">${fmtCZK(sum(byRoom[r]))}</span></div>
+        ${byRoom[r].map(h => houseCard(h, list.indexOf(h))).join("")}
+      </div>`;
+  }).join("");
+
+  return head + `<div class="house-grid">${rooms.length ? sections : `<div class="empty">Zatím žádné práce — přidej tlačítkem „+ Nová práce“.</div>`}</div>`;
+}
+
+function houseCard(h, idx) {
+  const subs = h.subtasks || [];
+  const open = subs.filter(s => !s.done);
+  const pr = { "Vysoká": "red", "Střední": "yellow", "Nízká": "blue" }[h.priority] || "neutral";
+  return `
+    <div class="kan-card" onclick="editHouseWork(${idx})">
+      <div class="kan-check ${h.done ? 'done' : ''}" onclick="event.stopPropagation();toggleHouseWork(${idx})"></div>
+      <div class="kan-cbody">
+        <div class="house-card-top">
+          <div class="kan-title">${esc(h.title || '(bez názvu)')}</div>
+          <div class="house-price">${(+h.price) ? fmtCZK(h.price) : ''}</div>
+        </div>
+        ${subs.length ? `<div class="kan-subs">${open.slice(0, 4).map(s => { const si = subs.indexOf(s); return `<div class="kan-sub" onclick="event.stopPropagation();toggleHouseSubtask(${idx},${si})"><span class="kan-sub-box"></span><span class="kan-sub-txt">${esc(s.text)}</span></div>`; }).join("")}${open.length > 4 ? `<div class="kan-sub-more">+ ${open.length - 4} dalších…</div>` : ""}</div>`
+          : (h.note ? `<div class="kan-note">${esc(h.note)}</div>` : "")}
+        <div class="kan-meta">
+          <span class="tag neutral">${esc(h.type || 'Realizace')}</span>
+          <span class="tag ${pr}">${esc(h.priority || 'Střední')}</span>
+          ${subs.length ? `<span class="kan-prog">${subs.length - open.length}/${subs.length}</span>` : ''}
+        </div>
+      </div>
+    </div>`;
+}
+
+function houseRowDone(h, idx) {
+  return `
+    <div class="item-row">
+      <div class="item-body">
+        <div class="item-title done">${esc(h.title || '')}</div>
+        <div class="item-meta">${h.room ? `<span class="tag neutral">${esc(h.room)}</span>` : ''}${(+h.price) ? `<span style="color:var(--ink-muted)">${fmtCZK(h.price)}</span>` : ''}</div>
+      </div>
+      <div class="row-actions" style="opacity:1">
+        <button class="btn" onclick="toggleHouseWork(${idx})">↩ Obnovit</button>
+        <button class="icon-btn" onclick="deleteHouseWork(${idx})" title="Smazat">✕</button>
+      </div>
+    </div>`;
+}
+
+function houseFormFields(h) {
+  h = h || {};
+  const rooms = [...new Set(houseList().map(x => x.room).filter(Boolean))].sort();
+  return [
+    { key: "title", label: "Práce / co", value: h.title || "" },
+    { key: "room", label: "Místnost (vyber nebo napiš)", type: "datalist", options: rooms, value: h.room || "", placeholder: "např. 00 - Hala, Zahrada…" },
+    { key: "type", label: "Typ", type: "select", options: ["Realizace", "Údržba", "Vybavení", "Jiné"], value: h.type || "Realizace" },
+    { key: "priority", label: "Priorita", type: "select", options: ["Vysoká", "Střední", "Nízká"], value: h.priority || "Střední" },
+    { key: "price", label: "Odhad ceny (Kč)", value: (h.price != null ? String(h.price) : "") },
+    { key: "status", label: "Stav", type: "select", options: ["Plán", "Probíhá", "Hotovo"], value: h.status || "Plán" },
+    { key: "note", label: "Poznámka (volitelné)", type: "textarea", value: h.note || "" },
+    { key: "subtasks", label: "Položky", type: "subtasks", value: h.subtasks || [] }
+  ];
+}
+function applyHouseForm(h, data) {
+  const subtasks = data.subtasks || h.subtasks || [];
+  const price = parseInt(String(data.price).replace(/[^\d-]/g, ""), 10) || 0;
+  const done = data.status === "Hotovo";
+  delete data.subtasks;
+  return { ...h, ...data, price, subtasks, done };
+}
+function addHouseWork() {
+  openModal("Nová práce", houseFormFields({}), data => houseList().unshift(applyHouseForm({}, data)));
+}
+function editHouseWork(i) {
+  const h = houseList()[i];
+  openModal("Upravit práci", houseFormFields(h), data => { houseList()[i] = applyHouseForm(h, data); });
+}
+function deleteHouseWork(i) {
+  if (confirm("Smazat „" + (houseList()[i].title || "práci") + "“?")) { houseList().splice(i, 1); save(); renderAll(); }
+}
+function toggleHouseWork(i) {
+  const h = houseList()[i];
+  h.done = !h.done;
+  h.status = h.done ? "Hotovo" : "Plán";
+  save(); renderAll();
+}
+function toggleHouseSubtask(i, si) {
+  const h = houseList()[i];
+  if (h && h.subtasks && h.subtasks[si]) { h.subtasks[si].done = !h.subtasks[si].done; save(); renderAll(); }
+}
+
+// ---- ENERGIE ----
+function renderEnergy() {
+  const e = energyObj();
+  const s = e.settings || {};
+  const unit = s.unit || "m³";
+  const rd = [...e.readings].sort((a, b) => String(a.date).localeCompare(String(b.date)));
+  // spočítej rozdíly mezi po sobě jdoucími odečty
+  let rowsHtml = "";
+  for (let i = rd.length - 1; i >= 0; i--) {
+    const r = rd[i], prev = rd[i - 1];
+    let dM = "", dCzk = "", days = "";
+    if (prev) {
+      const d = (+r.value) - (+prev.value);
+      dM = fmtNum(d) + " " + unit;
+      dCzk = fmtCZK(d * (+s.pricePerM3 || 0));
+      const da = parseDateIso(r.date), db = parseDateIso(prev.date);
+      if (da && db) days = Math.round((da - db) / 86400000) + " dní";
+    }
+    rowsHtml += `
+      <div class="energy-row" onclick="editReading(${e.readings.indexOf(r)})">
+        <div class="energy-date">${esc(r.date)}</div>
+        <div class="energy-val">${fmtNum(r.value)} ${esc(unit)}</div>
+        <div class="energy-delta">${dM ? `+${dM}${days ? ` · ${days}` : ""}` : "<span style='color:var(--ink-muted)'>počáteční</span>"}</div>
+        <div class="energy-cost">${dCzk}</div>
+      </div>`;
+  }
+  return `
+    <div class="page-header">
+      <div>
+        <div class="page-title">Energie — odečty</div>
+        <div class="page-subtitle">${rd.length} odečtů · cena ${fmtNum(s.pricePerM3, 2)} Kč/${esc(unit)}${(+s.fixedPerYear) ? ` · stálý plat ${fmtCZK(s.fixedPerYear)}/rok` : ""}</div>
+      </div>
+      <div class="page-actions">
+        <button class="btn" onclick="editEnergySettings()">⚙ Ceník</button>
+        <button class="btn primary" onclick="addReading()">+ Nový odečet</button>
+      </div>
+    </div>
+    <p style="color:var(--ink-soft);font-size:13px;line-height:1.6;margin-bottom:14px">
+      Zapiš stav měřáku k datu. Spotřebu i náklad mezi odečty (rozdíl × cena za ${esc(unit)}) dopočítá appka sama.
+    </p>
+    <div class="energy-head">
+      <div>Datum</div><div>Stav</div><div>Spotřeba od minula</div><div>Náklad</div>
+    </div>
+    <div class="list-wrap">
+      ${rd.length ? rowsHtml : `<div class="empty">Zatím žádné odečty — přidej „+ Nový odečet“.</div>`}
+    </div>`;
+}
+function addReading() {
+  openModal("Nový odečet", [
+    { key: "date", label: "Datum", type: "date", value: new Date().toISOString().slice(0, 10) },
+    { key: "value", label: "Stav měřáku", value: "" },
+    { key: "note", label: "Poznámka (volitelné)", value: "" }
+  ], data => {
+    energyObj().readings.push({ date: data.date, value: parseFloat(String(data.value).replace(",", ".").replace(/[^\d.-]/g, "")) || 0, note: data.note || "" });
+  });
+}
+function editReading(i) {
+  const r = energyObj().readings[i];
+  openModal("Upravit odečet", [
+    { key: "date", label: "Datum", type: "date", value: r.date || "" },
+    { key: "value", label: "Stav měřáku", value: String(r.value != null ? r.value : "") },
+    { key: "note", label: "Poznámka (volitelné)", value: r.note || "" },
+    { key: "_del", label: "Smazat? (napiš ANO)", value: "" }
+  ], data => {
+    if ((data._del || "").trim().toUpperCase() === "ANO") { energyObj().readings.splice(i, 1); return; }
+    energyObj().readings[i] = { date: data.date, value: parseFloat(String(data.value).replace(",", ".").replace(/[^\d.-]/g, "")) || 0, note: data.note || "" };
+  });
+}
+function editEnergySettings() {
+  const s = energyObj().settings;
+  openModal("Ceník energií", [
+    { key: "pricePerM3", label: "Cena za jednotku (Kč)", value: String(s.pricePerM3 || "") },
+    { key: "unit", label: "Jednotka", value: s.unit || "m³" },
+    { key: "fixedPerYear", label: "Stálý plat / rok (Kč, volitelné)", value: String(s.fixedPerYear || "") }
+  ], data => {
+    energyObj().settings = {
+      pricePerM3: parseFloat(String(data.pricePerM3).replace(",", ".")) || 0,
+      unit: data.unit || "m³",
+      fixedPerYear: parseFloat(String(data.fixedPerYear).replace(",", ".")) || 0
+    };
+  });
+}
+
+function importDomacnostFromJson() {
+  const inp = document.createElement("input");
+  inp.type = "file"; inp.accept = "application/json,.json";
+  inp.onchange = () => {
+    const f = inp.files && inp.files[0]; if (!f) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      try {
+        const obj = JSON.parse(reader.result);
+        if (!DB.houseWorks) DB.houseWorks = [];
+        const e = energyObj();
+        let nH = 0, uH = 0, nR = 0;
+        (obj.houseWorks || []).forEach(h => {
+          const key = (h.title || "") + "|" + (h.room || "");
+          const idx = DB.houseWorks.findIndex(x => (x.title || "") + "|" + (x.room || "") === key);
+          const item = { title: h.title || "", room: h.room || "", type: h.type || "Realizace", priority: h.priority || "Střední", price: +h.price || 0, status: h.status || "Plán", note: h.note || "", subtasks: Array.isArray(h.subtasks) ? h.subtasks.map(s => ({ text: s.text || "", done: !!s.done })) : [], done: !!h.done };
+          if (idx >= 0) { DB.houseWorks[idx] = item; uH++; } else { DB.houseWorks.push(item); nH++; }
+        });
+        if (obj.energy) {
+          if (obj.energy.settings) e.settings = { pricePerM3: +obj.energy.settings.pricePerM3 || 0, unit: obj.energy.settings.unit || "m³", fixedPerYear: +obj.energy.settings.fixedPerYear || 0 };
+          (obj.energy.readings || []).forEach(r => {
+            if (!e.readings.some(x => x.date === r.date)) { e.readings.push({ date: r.date, value: +r.value || 0, note: r.note || "" }); nR++; }
+          });
+        }
+        save(); renderAll(); if (!currentModule) renderHub();
+        alert("Import Domácnosti hotový.\nDům: +" + nH + " nových, " + uH + " aktualizováno\nEnergie: +" + nR + " odečtů");
+      } catch (er) { alert("Soubor se nepodařilo načíst: " + er.message); }
+    };
+    reader.readAsText(f, "utf-8");
+  };
+  inp.click();
 }
 
 function goto(page) {
@@ -4564,6 +4967,7 @@ const PAGE_ACCENT = {
 function renderAll() {
   if (!DB) return; // ještě nejsou načtená data
   if (currentModule === "tasks") { renderTasksModule(); return; }
+  if (currentModule === "home") { renderDomacnostModule(); return; }
   const renderer = PAGES[currentPage] || renderDashboard;
   const appEl = document.getElementById("app");
   if (appEl) appEl.style.setProperty("--sec", PAGE_ACCENT[currentPage] || "var(--accent)");
