@@ -5197,42 +5197,55 @@ function importDomacnostFromJson() {
 
 
 // ============================================================
-// MODUL FINANCE — Vývoj (predikce cashflow) a Rozdělení (zaplaceno + úvěry)
+// MODUL FINANCE — Vývoj · Rozdělení · Rozpočet · Vyúčtování
 // ============================================================
 
-let financeTab = "vyvoj";  // 'vyvoj' | 'split'
+let financeTab = "vyvoj";  // 'vyvoj' | 'split' | 'rozpocet' | 'vyuctovani'
+let finView = "dash";      // ve Vývoji: 'dash' | 'data'
 let finYear = null;        // drill-down predikce
 let finMonth = null;
+let vyucYear = null;       // drill-down vyúčtování
 
 function finObj() {
   if (!DB.finance) DB.finance = {};
-  if (!Array.isArray(DB.finance.predikce)) DB.finance.predikce = [];
-  if (!Array.isArray(DB.finance.zaplaceno)) DB.finance.zaplaceno = [];
-  if (!Array.isArray(DB.finance.loans)) DB.finance.loans = [];
-  return DB.finance;
+  const f = DB.finance;
+  if (!Array.isArray(f.predikce)) f.predikce = [];
+  if (!Array.isArray(f.zaplaceno)) f.zaplaceno = [];
+  if (!Array.isArray(f.loans)) f.loans = [];
+  if (!Array.isArray(f.rozpocet)) f.rozpocet = [];
+  if (!Array.isArray(f.vyuctovani)) f.vyuctovani = [];
+  if (f.prijmy == null) f.prijmy = 0;
+  if (f.settleB == null) f.settleB = 0.45; // podíl Báry pro vyúčtování (45/55)
+  return f;
 }
-// příjmy = mzdy + ostatní (+ úspory jen na úvodním řádku); výdaje jsou záporné
-function predIncome(e, opening) { return (opening ? (+e.uspory || 0) : 0) + (+e.mzdaM || 0) + (+e.mzdaB || 0) + (+e.ostatni || 0); }
-function predExpense(e) { return (+e.vydOstatni || 0) + (+e.vydBezne || 0); } // záporné
+// bezpečný výpočet výrazu "283000+5000", "8631*0.55", "100-50"  (jako Excel "=")
+function evalExpr(s) {
+  if (s == null) return 0;
+  if (typeof s === "number") return s;
+  s = String(s).replace(/^=/, "").replace(/,/g, ".").replace(/\s/g, "");
+  if (s === "") return 0;
+  if (!/^[-+*0-9.]+$/.test(s)) return parseFloat(s) || 0;
+  let total = 0, m; const re = /([+-]?)([0-9.]+(?:\*[0-9.]+)*)/g;
+  while ((m = re.exec(s))) {
+    const sign = m[1] === "-" ? -1 : 1;
+    const term = m[2].split("*").reduce((a, b) => a * (parseFloat(b) || 0), 1);
+    total += sign * term;
+  }
+  return total;
+}
+
+// ---- Predikce (cashflow) ----
+function predIncome(e, opening) { return (opening ? evalExpr(e.uspory) : 0) + (+e.mzdaM || 0) + (+e.mzdaB || 0) + (+e.ostatni || 0); }
+function predExpense(e) { return (+e.vydOstatni || 0) + (+e.vydBezne || 0); }
 function predRows() {
   const arr = [...finObj().predikce].sort((a, b) => String(a.date).localeCompare(String(b.date)));
   let bal = 0;
-  return arr.map((e, i) => {
-    const inc = predIncome(e, i === 0);
-    const exp = predExpense(e);
-    bal += inc + exp;
-    return { ...e, inc, exp, net: inc + exp, bal };
-  });
+  return arr.map((e, i) => { const inc = predIncome(e, i === 0); const exp = predExpense(e); bal += inc + exp; return { ...e, inc, exp, net: inc + exp, bal }; });
 }
 function finYears(rows) { return [...new Set(rows.map(r => +String(r.date).slice(0, 4)))].sort((a, b) => a - b); }
 function predAggr(rows) {
-  return {
-    days: rows.length,
-    inc: rows.reduce((s, r) => s + r.inc, 0),
-    exp: rows.reduce((s, r) => s + r.exp, 0),
-    net: rows.reduce((s, r) => s + r.inc + r.exp, 0),
-    endBal: rows.length ? rows[rows.length - 1].bal : 0
-  };
+  return { days: rows.length, inc: rows.reduce((s, r) => s + r.inc, 0), exp: rows.reduce((s, r) => s + r.exp, 0),
+    net: rows.reduce((s, r) => s + r.inc + r.exp, 0), endBal: rows.length ? rows[rows.length - 1].bal : 0 };
 }
 
 function renderFinanceModule() {
@@ -5242,40 +5255,37 @@ function renderFinanceModule() {
   if (sc) sc.style.setProperty("--sec", "var(--green)");
   body.innerHTML = renderFinance();
 }
+function finTab(id, label) { return `<button class="dom-tab ${financeTab === id ? 'active' : ''}" onclick="financeTab='${id}'; finYear=null; finMonth=null; vyucYear=null; renderAll()">${label}</button>`; }
 function renderFinance() {
-  const isS = financeTab === "split";
-  const header = isS ? splitHeader() : vyvojHeader();
-  const tabs = `
-    <div class="dom-tabs">
-      <button class="dom-tab ${!isS ? 'active' : ''}" onclick="financeTab='vyvoj'; finYear=null; finMonth=null; renderAll()">📈 Vývoj — cashflow</button>
-      <button class="dom-tab ${isS ? 'active' : ''}" onclick="financeTab='split'; renderAll()">🤝 Rozdělení — kdo platí + úvěry</button>
+  let header, body;
+  if (financeTab === "split") { header = splitHeader(); body = splitBody(); }
+  else if (financeTab === "rozpocet") { header = rozpocetHeader(); body = rozpocetBody(); }
+  else if (financeTab === "vyuctovani") { header = vyuctHeader(); body = vyuctBody(); }
+  else { header = vyvojHeader(); body = vyvojBody(); }
+  const tabs = `<div class="dom-tabs">
+      ${finTab('vyvoj', '📈 Vývoj')}
+      ${finTab('rozpocet', '🧮 Rozpočet')}
+      ${finTab('vyuctovani', '📅 Vyúčtování')}
+      ${finTab('split', '🤝 Rozdělení + úvěry')}
     </div>`;
-  return header + tabs + (isS ? splitBody() : vyvojBody());
+  return header + tabs + body;
 }
 
-// ---------- VÝVOJ (cashflow) ----------
+// ====================== VÝVOJ (cashflow) ======================
 function vyvojHeader() {
   const rows = predRows();
   const range = rows.length ? `${rows[0].date} – ${rows[rows.length - 1].date}` : "zatím prázdné";
-  return `
-    <div class="page-header">
-      <div>
-        <div class="page-title">Vývoj — cashflow</div>
-        <div class="page-subtitle">${rows.length} záznamů · ${esc(range)}</div>
-      </div>
-      <div class="page-actions">
-        <button class="btn" onclick="importFinanceFromJson()">↥ Import (JSON)</button>
-        <button class="btn primary" onclick="addPredikce()">+ Záznam</button>
-      </div>
+  return `<div class="page-header">
+      <div><div class="page-title">Vývoj — cashflow</div><div class="page-subtitle">${rows.length} záznamů · ${esc(range)}</div></div>
+      <div class="page-actions"><button class="btn" onclick="importFinanceFromJson()">↥ Import (JSON)</button><button class="btn primary" onclick="addPredikce()">+ Záznam</button></div>
     </div>`;
 }
 function vyvojBody() {
   const sub = `<div class="dom-subtabs">
-      <button class="filter-btn ${finMonth == null && finYear == null ? 'active' : ''}" onclick="finYear=null;finMonth=null;renderAll()">📊 Přehled</button>
-      <button class="filter-btn ${(finYear != null) ? 'active' : ''}" onclick="if(finYear==null){finYear=(finYears(predRows())[0]||new Date().getFullYear())};renderAll()">📋 Data</button>
+      <button class="filter-btn ${finView === 'dash' ? 'active' : ''}" onclick="finView='dash';renderAll()">📊 Přehled</button>
+      <button class="filter-btn ${finView === 'data' ? 'active' : ''}" onclick="finView='data';finYear=null;finMonth=null;renderAll()">📋 Data</button>
     </div>`;
-  if (finYear != null) return sub + vyvojData();
-  return sub + vyvojDash();
+  return sub + (finView === "data" ? vyvojData() : vyvojDash());
 }
 function vyvojDash() {
   const rows = predRows();
@@ -5283,73 +5293,51 @@ function vyvojDash() {
   const today = new Date().toISOString().slice(0, 10);
   const past = rows.filter(r => r.date <= today);
   const nowBal = past.length ? past[past.length - 1].bal : rows[0].bal;
-  const endBal = rows[rows.length - 1].bal;
-  let min = rows[0], max = rows[0];
-  rows.forEach(r => { if (r.bal < min.bal) min = r; if (r.bal > max.bal) max = r; });
+  let min = rows[0]; rows.forEach(r => { if (r.bal < min.bal) min = r; });
   const a = predAggr(rows);
-  // měsíční koncové zůstatky → spojnice
-  const byMonth = {};
-  rows.forEach(r => { const k = r.date.slice(0, 7); byMonth[k] = r.bal; });
+  const byMonth = {}; rows.forEach(r => { byMonth[r.date.slice(0, 7)] = r.bal; });
   const mkeys = Object.keys(byMonth).sort();
-  const balLine = mkeys.map(k => ({ label: k.slice(2).replace("-", "/"), value: Math.round(byMonth[k]),
-    tip: `${k} · zůstatek ${fmtCZK(byMonth[k])}` }));
-  // měsíční příjmy/výdaje (net) bars pro aktuální/poslední rok
+  const balLine = mkeys.map(k => ({ label: k.slice(2).replace("-", "/"), value: Math.round(byMonth[k]), tip: `${k} · zůstatek ${fmtCZK(byMonth[k])}` }));
   const years = finYears(rows);
   const yNow = years.includes(+today.slice(0, 4)) ? +today.slice(0, 4) : years[years.length - 1];
   const netBars = [];
-  for (let m = 0; m < 12; m++) {
-    const mr = rows.filter(r => +r.date.slice(0, 4) === yNow && (+r.date.slice(5, 7) - 1) === m);
-    if (!mr.length) continue;
-    const ag = predAggr(mr);
-    netBars.push({ label: MONTHS_SH[m], value: Math.round(ag.net),
-      tip: `${MONTHS_CZ[m]} ${yNow} · příjmy ${fmtCZK(ag.inc)} · výdaje ${fmtCZK(ag.exp)} · saldo ${fmtCZK(ag.net)}` });
-  }
-  const minColor = min.bal < 0 ? "var(--red)" : "var(--yellow)";
+  for (let m = 0; m < 12; m++) { const mr = rows.filter(r => +r.date.slice(0, 4) === yNow && (+r.date.slice(5, 7) - 1) === m); if (!mr.length) continue; const ag = predAggr(mr); netBars.push({ label: MONTHS_SH[m], value: Math.round(ag.net), tip: `${MONTHS_CZ[m]} ${yNow} · příjmy ${fmtCZK(ag.inc)} · výdaje ${fmtCZK(ag.exp)} · saldo ${fmtCZK(ag.net)}` }); }
   return `
     <div class="estat-grid">
       ${statTile("Zůstatek dnes", fmtCZK(nowBal), today, "var(--accent)")}
-      ${statTile("Nejnižší zůstatek", fmtCZK(min.bal), "kolem " + min.date, minColor)}
-      ${statTile("Konečný zůstatek", fmtCZK(endBal), "k " + rows[rows.length - 1].date, "var(--green)")}
+      ${statTile("Nejnižší zůstatek", fmtCZK(min.bal), "kolem " + min.date, min.bal < 0 ? "var(--red)" : "var(--yellow)")}
+      ${statTile("Konečný zůstatek", fmtCZK(rows[rows.length - 1].bal), "k " + rows[rows.length - 1].date, "var(--green)")}
       ${statTile("Příjmy / výdaje celkem", fmtCZK(a.inc), "výdaje " + fmtCZK(a.exp), "var(--blue)")}
     </div>
     ${min.bal < 0 ? `<p style="color:var(--red);font-size:13px;font-weight:600;margin:0 0 16px">⚠️ Pozor: predikce jde kolem ${esc(min.date)} do mínusu (${fmtCZK(min.bal)}).</p>` : ""}
     <div class="echart"><div class="echart-h">Vývoj zůstatku po měsících (Kč)</div>${svgLine(balLine, "var(--accent)")}</div>
-    <div class="echart"><div class="echart-h">Měsíční saldo (příjmy − výdaje) — ${yNow} · modrá = mínus</div>${svgBars(netBars, "var(--green)", { dec: 0 })}</div>
-    <p style="color:var(--ink-muted);font-size:12px;line-height:1.6">Zůstatek počítám čistě z příjmů a výdajů (úspory na startu = počáteční stav). Na začátku sedí na Excel, dál se může lišit, protože v listu byly ruční úpravy zůstatku — tahle verze je konzistentní a přepočítá se i po tvých úpravách.</p>`;
+    <div class="echart"><div class="echart-h">Měsíční saldo (příjmy − výdaje) — ${yNow}</div>${svgBars(netBars, "var(--green)", { dec: 0 })}</div>`;
 }
 function vyvojData() {
   const rows = predRows();
-  let crumb = `<div class="energy-crumb"><span class="crumb ${finMonth == null ? 'cur' : ''}" onclick="finMonth=null;renderAll()">${finYear}</span>`;
+  if (!rows.length) return `<div class="empty">Zatím žádné záznamy.</div>`;
+  // drobečky
+  let crumb = `<div class="energy-crumb"><span class="crumb ${finYear == null ? 'cur' : ''}" onclick="finYear=null;finMonth=null;renderAll()">Všechny roky</span>`;
+  if (finYear != null) crumb += ` ▸ <span class="crumb ${finMonth == null ? 'cur' : ''}" onclick="finMonth=null;renderAll()">${finYear}</span>`;
   if (finMonth != null) crumb += ` ▸ <span class="crumb cur">${MONTHS_CZ[finMonth]}</span>`;
   crumb += `</div>`;
+  if (finYear == null) {
+    const head = `<div class="etbl-head e5"><div>Rok</div><div>Příjmy</div><div>Výdaje</div><div>Saldo</div><div>Konec. zůstatek</div></div>`;
+    const body = finYears(rows).map(y => { const a = predAggr(rows.filter(r => +r.date.slice(0, 4) === y));
+      return `<div class="etbl-row e5" onclick="finYear=${y};finMonth=null;renderAll()"><div><b>${y}</b></div><div style="color:var(--green)">${fmtCZK(a.inc)}</div><div style="color:var(--red)">${fmtCZK(a.exp)}</div><div>${fmtCZK(a.net)}</div><div class="e-num">${fmtCZK(a.endBal)}</div></div>`; }).join("");
+    return crumb + head + `<div class="list-wrap">${body}</div>`;
+  }
   if (finMonth == null) {
-    const head = `<div class="etbl-head e5"><div>Měsíc</div><div>Příjmy</div><div>Výdaje</div><div>Saldo</div><div>Zůstatek</div></div>`;
+    const head = `<div class="etbl-head e5"><div>Měsíc</div><div>Příjmy</div><div>Výdaje</div><div>Saldo</div><div>Konec. zůstatek</div></div>`;
     let body = "";
-    for (let m = 0; m < 12; m++) {
-      const mr = rows.filter(r => +r.date.slice(0, 4) === finYear && (+r.date.slice(5, 7) - 1) === m);
-      if (!mr.length) continue;
-      const a = predAggr(mr);
-      body += `<div class="etbl-row e5" onclick="finMonth=${m};renderAll()">
-        <div><b>${MONTHS_CZ[m]}</b></div>
-        <div style="color:var(--green)">${fmtCZK(a.inc)}</div>
-        <div style="color:var(--red)">${fmtCZK(a.exp)}</div>
-        <div>${fmtCZK(a.net)}</div>
-        <div class="e-num">${fmtCZK(a.endBal)}</div></div>`;
-    }
-    return crumb + head + `<div class="list-wrap">${body || `<div class="empty">Žádné záznamy v ${finYear}.</div>`}</div>`;
+    for (let m = 0; m < 12; m++) { const mr = rows.filter(r => +r.date.slice(0, 4) === finYear && (+r.date.slice(5, 7) - 1) === m); if (!mr.length) continue; const a = predAggr(mr);
+      body += `<div class="etbl-row e5" onclick="finMonth=${m};renderAll()"><div><b>${MONTHS_CZ[m]}</b></div><div style="color:var(--green)">${fmtCZK(a.inc)}</div><div style="color:var(--red)">${fmtCZK(a.exp)}</div><div>${fmtCZK(a.net)}</div><div class="e-num">${fmtCZK(a.endBal)}</div></div>`; }
+    return crumb + head + `<div class="list-wrap">${body}</div>`;
   }
   const dr = rows.filter(r => +r.date.slice(0, 4) === finYear && (+r.date.slice(5, 7) - 1) === finMonth);
   const head = `<div class="etbl-head e5"><div>Datum / co</div><div>Příjem</div><div>Výdaj</div><div>Saldo</div><div>Zůstatek</div></div>`;
-  const body = dr.map(r => {
-    const fi = finObj().predikce.findIndex(x => x.date === r.date && (x.who || "") === (r.who || "") && (x.detail || "") === (r.detail || ""));
-    const label = (r.who || r.detail || r.date.slice(8, 10) + ".").toString();
-    return `<div class="etbl-row e5" onclick="editPredikce(${fi})">
-      <div><b>${esc(r.date.slice(8, 10))}.</b> ${esc((r.who || r.detail || "").slice(0, 22))}</div>
-      <div style="color:var(--green)">${r.inc ? fmtCZK(r.inc) : ""}</div>
-      <div style="color:var(--red)">${r.exp ? fmtCZK(r.exp) : ""}</div>
-      <div>${fmtCZK(r.net)}</div>
-      <div class="e-num">${fmtCZK(r.bal)}</div></div>`;
-  }).join("");
+  const body = dr.map(r => { const fi = finObj().predikce.findIndex(x => x.date === r.date && (x.who || "") === (r.who || "") && (x.detail || "") === (r.detail || ""));
+    return `<div class="etbl-row e5" onclick="editPredikce(${fi})"><div><b>${esc(r.date.slice(8, 10))}.</b> ${esc((r.who || r.detail || "").slice(0, 22))}</div><div style="color:var(--green)">${r.inc ? fmtCZK(r.inc) : ""}</div><div style="color:var(--red)">${r.exp ? fmtCZK(r.exp) : ""}</div><div>${fmtCZK(r.net)}</div><div class="e-num">${fmtCZK(r.bal)}</div></div>`; }).join("");
   return crumb + head + `<div class="list-wrap">${body}</div>`;
 }
 function predFields(e) {
@@ -5358,74 +5346,207 @@ function predFields(e) {
     { key: "date", label: "Datum", type: "date", value: e.date || new Date().toISOString().slice(0, 10) },
     { key: "who", label: "Kdo / co", value: e.who || "" },
     { key: "detail", label: "Detail (volitelné)", value: e.detail || "" },
-    { key: "mzdaM", label: "Mzda Michal (+)", value: e.mzdaM != null ? String(e.mzdaM) : "" },
+    { key: "mzdaM", label: "Mzda Michal (+, lze i „5000+3000“)", value: e.mzdaM != null ? String(e.mzdaM) : "" },
     { key: "mzdaB", label: "Mzda Bára (+)", value: e.mzdaB != null ? String(e.mzdaB) : "" },
     { key: "ostatni", label: "Ostatní příjem (+)", value: e.ostatni != null ? String(e.ostatni) : "" },
-    { key: "vydBezne", label: "Výdaje běžné (zadej kladně, odečte se)", value: e.vydBezne != null ? String(Math.abs(e.vydBezne)) : "" },
-    { key: "vydOstatni", label: "Výdaje ostatní (zadej kladně, odečte se)", value: e.vydOstatni != null ? String(Math.abs(e.vydOstatni)) : "" },
-    { key: "uspory", label: "Počáteční úspory (jen úvodní řádek)", value: e.uspory != null ? String(e.uspory) : "" },
+    { key: "vydBezne", label: "Výdaje běžné (kladně, odečte se)", value: e.vydBezne != null ? String(Math.abs(e.vydBezne)) : "" },
+    { key: "vydOstatni", label: "Výdaje ostatní (kladně, odečte se)", value: e.vydOstatni != null ? String(Math.abs(e.vydOstatni)) : "" },
+    { key: "uspory", label: "Úspory / počáteční stav (lze „283000+5000+5000“)", value: e.uspory != null ? String(e.uspory) : "" },
     { key: "note", label: "Poznámka", value: e.note || "" }
   ];
 }
 function applyPred(e, d) {
-  const n = v => v === "" || v == null ? 0 : (parseFloat(String(v).replace(/\s/g, "").replace(",", ".")) || 0);
   return { date: d.date, who: d.who || "", detail: d.detail || "", note: d.note || "",
-    mzdaM: n(d.mzdaM), mzdaB: n(d.mzdaB), ostatni: n(d.ostatni), uspory: n(d.uspory),
-    vydBezne: -Math.abs(n(d.vydBezne)), vydOstatni: -Math.abs(n(d.vydOstatni)) };
+    mzdaM: evalExpr(d.mzdaM), mzdaB: evalExpr(d.mzdaB), ostatni: evalExpr(d.ostatni),
+    uspory: (d.uspory == null || d.uspory === "") ? "" : String(d.uspory).trim(),  // necháme výraz, ať lze přidávat (jako Excel „=“)
+    vydBezne: -Math.abs(evalExpr(d.vydBezne)), vydOstatni: -Math.abs(evalExpr(d.vydOstatni)) };
 }
 function addPredikce() { openModal("Nový záznam", predFields({}), d => finObj().predikce.push(applyPred({}, d))); }
 function editPredikce(i) {
   const e = finObj().predikce[i]; if (!e) return;
-  const fields = predFields(e).concat([{ key: "_del", label: "Smazat? (napiš ANO)", value: "" }]);
-  openModal("Upravit záznam", fields, d => {
+  openModal("Upravit záznam", predFields(e).concat([{ key: "_del", label: "Smazat? (napiš ANO)", value: "" }]), d => {
     if ((d._del || "").trim().toUpperCase() === "ANO") { finObj().predikce.splice(i, 1); return; }
     finObj().predikce[i] = applyPred(e, d);
   });
 }
 
-// ---------- ROZDĚLENÍ (zaplaceno + úvěry) ----------
+// ====================== ROZPOČET (měsíční) ======================
+function rozpocetHeader() {
+  const r = finObj().rozpocet;
+  const vyd = r.reduce((s, x) => s + (+x.amount || 0), 0);
+  return `<div class="page-header">
+      <div><div class="page-title">Rozpočet — měsíční</div><div class="page-subtitle">${r.length} položek · výdaje ${fmtCZK(vyd)}/měs · příjmy ${fmtCZK(finObj().prijmy)}/měs</div></div>
+      <div class="page-actions"><button class="btn" onclick="editPrijmy()">⚙ Příjmy</button><button class="btn" onclick="importFinanceFromJson()">↥ Import</button><button class="btn primary" onclick="addRozpocet()">+ Položka</button></div>
+    </div>`;
+}
+function rozpocetBody() {
+  const r = finObj().rozpocet;
+  if (!r.length) return `<div class="empty">Zatím prázdné — naimportuj JSON nebo přidej „+ Položka“.</div>`;
+  const bKc = x => (+x.amount || 0) * (+x.bPct || 0);
+  const mKc = x => (+x.amount || 0) * (+x.mPct || 0);
+  const sumAmt = r.reduce((s, x) => s + (+x.amount || 0), 0);
+  const sumB = r.reduce((s, x) => s + bKc(x), 0);
+  const sumM = r.reduce((s, x) => s + mKc(x), 0);
+  const prijmy = +finObj().prijmy || 0;
+  // kolik poslat na jaký účet
+  const acc = {};
+  r.forEach(x => { const a = x.account || "(nezadáno)"; acc[a] = (acc[a] || 0) + (+x.amount || 0); });
+  const accHtml = Object.keys(acc).sort((a, b) => acc[b] - acc[a]).map(a => `<div class="etbl-row e4" style="cursor:default"><div><b>${esc(a)}</b></div><div></div><div></div><div class="e-num">${fmtCZK(acc[a])}</div></div>`).join("");
+  // tabulka položek seskupená dle typu
+  const byType = {};
+  r.forEach((x, i) => { const t = x.type || "Ostatní"; (byType[t] = byType[t] || []).push({ x, i }); });
+  const rowsHtml = Object.keys(byType).map(t => {
+    const items = byType[t].map(({ x, i }) => `<div class="etbl-row e5" onclick="editRozpocet(${i})"><div>${esc(x.item)}${x.account ? ` <span style="color:var(--ink-muted);font-size:11px">· ${esc(x.account)}</span>` : ""}</div><div>${fmtCZK(x.amount)}</div><div style="color:var(--teal,var(--blue))">${fmtCZK(bKc(x))}</div><div style="color:var(--purple,var(--accent))">${fmtCZK(mKc(x))}</div><div class="e-num">${(+x.fixVar === 0 ? "" : esc(x.fixVar || ""))}</div></div>`).join("");
+    const tb = byType[t].reduce((s, o) => s + bKc(o.x), 0), tm = byType[t].reduce((s, o) => s + mKc(o.x), 0);
+    return `<div class="house-room-head" style="margin-top:12px"><span>${esc(t)}</span><span class="house-room-sum">${fmtCZK(tb + tm)}</span></div>${items}`;
+  }).join("");
+  return `
+    <div class="estat-grid">
+      ${statTile("Bára posílá / měs", fmtCZK(sumB), fmtNum(100 * sumB / (sumB + sumM || 1), 0) + " % výdajů", "var(--teal,var(--blue))")}
+      ${statTile("Michal posílá / měs", fmtCZK(sumM), fmtNum(100 * sumM / (sumB + sumM || 1), 0) + " % výdajů", "var(--purple,var(--accent))")}
+      ${statTile("Výdaje / měs", fmtCZK(sumAmt), "příjmy " + fmtCZK(prijmy), "var(--red)")}
+      ${statTile("Zbývá / měs", fmtCZK(prijmy - sumAmt), prijmy - sumAmt < 0 ? "rozpočet v mínusu" : "rezerva", prijmy - sumAmt < 0 ? "var(--red)" : "var(--green)")}
+    </div>
+    <div class="echart-h" style="margin-top:4px">Kolik poslat na jaký účet</div>
+    <div class="etbl-head e4"><div>Účet</div><div></div><div></div><div>Měsíčně</div></div>
+    <div class="list-wrap">${accHtml}</div>
+    <div class="echart-h" style="margin-top:18px">Položky rozpočtu</div>
+    <div class="etbl-head e5"><div>Položka</div><div>Částka</div><div>Bára</div><div>Michal</div><div>Fix/Var</div></div>
+    <div class="list-wrap">${rowsHtml}
+      <div class="etbl-row e5 etbl-sum"><div>CELKEM</div><div>${fmtCZK(sumAmt)}</div><div>${fmtCZK(sumB)}</div><div>${fmtCZK(sumM)}</div><div></div></div>
+    </div>`;
+}
+function rozpFields(x) {
+  x = x || {};
+  const types = [...new Set(finObj().rozpocet.map(i => i.type).filter(Boolean))];
+  const accts = [...new Set(finObj().rozpocet.map(i => i.account).filter(Boolean))];
+  return [
+    { key: "item", label: "Položka", value: x.item || "" },
+    { key: "type", label: "Typ", type: "datalist", options: types.length ? types : ["Půjčka", "Pojištění", "Služby", "Telekomunikace", "Škola", "Běžné výdaje", "Daň"], value: x.type || "" },
+    { key: "fixVar", label: "Fix / Var", type: "select", options: ["fix", "var"], value: x.fixVar || "fix" },
+    { key: "amount", label: "Částka / měsíc (Kč)", value: x.amount != null ? String(x.amount) : "" },
+    { key: "bPct", label: "Podíl Bára (%)", value: x.bPct != null ? String(Math.round(x.bPct * 100)) : "45" },
+    { key: "account", label: "Jaký účet", type: "datalist", options: accts.length ? accts : ["KB", "RB M", "RB B", "Wise"], value: x.account || "KB" },
+    { key: "who", label: "Na koho (BM/B/M)", value: x.who || "" },
+    { key: "dueDay", label: "Ke kdy", value: x.dueDay || "" }
+  ];
+}
+function applyRozp(x, d) {
+  const b = Math.max(0, Math.min(100, evalExpr(d.bPct))) / 100;
+  return { item: d.item || "", type: d.type || "", fixVar: d.fixVar || "fix", amount: evalExpr(d.amount),
+    bPct: b, mPct: Math.round((1 - b) * 10000) / 10000, who: d.who || "", dueDay: d.dueDay || "", account: d.account || "" };
+}
+function addRozpocet() { openModal("Nová položka rozpočtu", rozpFields({}), d => finObj().rozpocet.push(applyRozp({}, d))); }
+function editRozpocet(i) {
+  const x = finObj().rozpocet[i]; if (!x) return;
+  openModal("Upravit položku", rozpFields(x).concat([{ key: "_del", label: "Smazat? (napiš ANO)", value: "" }]), d => {
+    if ((d._del || "").trim().toUpperCase() === "ANO") { finObj().rozpocet.splice(i, 1); return; }
+    finObj().rozpocet[i] = applyRozp(x, d);
+  });
+}
+function editPrijmy() {
+  openModal("Měsíční příjmy", [{ key: "prijmy", label: "Čisté příjmy / měsíc (Kč)", value: String(finObj().prijmy || "") }], d => { finObj().prijmy = evalExpr(d.prijmy); });
+}
+
+// ====================== VYÚČTOVÁNÍ (měsíční actuals) ======================
+function vyuctHeader() {
+  const v = finObj().vyuctovani;
+  const range = v.length ? `${v[0].month} – ${v[v.length - 1].month}` : "zatím prázdné";
+  return `<div class="page-header">
+      <div><div class="page-title">Vyúčtování — měsíční</div><div class="page-subtitle">${v.length} měsíců · ${esc(range)} · split ${fmtNum(finObj().settleB * 100, 0)}/${fmtNum((1 - finObj().settleB) * 100, 0)}</div></div>
+      <div class="page-actions"><button class="btn" onclick="editSettle()">⚙ Poměr</button><button class="btn" onclick="importFinanceFromJson()">↥ Import</button><button class="btn primary" onclick="addVyuct()">+ Měsíc</button></div>
+    </div>`;
+}
+function vyuctRows() { return [...finObj().vyuctovani].sort((a, b) => String(a.month).localeCompare(String(b.month))); }
+function vyuctBody() {
+  const rows = vyuctRows();
+  if (!rows.length) return `<div class="empty">Zatím prázdné — naimportuj JSON nebo přidej „+ Měsíc“.</div>`;
+  const years = [...new Set(rows.map(r => +r.month.slice(0, 4)))].sort((a, b) => a - b);
+  if (vyucYear == null) {
+    // přehled roků + graf
+    const head = `<div class="etbl-head e5"><div>Rok</div><div>Příjmy běžné</div><div>Výdaje běžné</div><div>Saldo</div><div>Měsíců</div></div>`;
+    const body = years.map(y => { const yr = rows.filter(r => +r.month.slice(0, 4) === y);
+      const bP = yr.reduce((s, r) => s + (+r.bP || 0), 0), bV = yr.reduce((s, r) => s + (+r.bV || 0), 0);
+      return `<div class="etbl-row e5" onclick="vyucYear=${y};renderAll()"><div><b>${y}</b></div><div style="color:var(--green)">${fmtCZK(bP)}</div><div style="color:var(--red)">${fmtCZK(bV)}</div><div>${fmtCZK(bP - bV)}</div><div class="e-num">${yr.length}</div></div>`; }).join("");
+    return `<p style="color:var(--ink-soft);font-size:13px;margin:0 0 14px">Skutečné měsíční sumy (běžné = společné, celkové = vč. jednorázových). Klikni na rok → měsíce. U měsíce můžeš běžné výdaje rozúčtovat do „Rozdělení“.</p>` + head + `<div class="list-wrap">${body}</div>`;
+  }
+  // měsíce daného roku
+  const yr = rows.filter(r => +r.month.slice(0, 4) === vyucYear);
+  const bars = yr.map(r => ({ label: MONTHS_SH[+r.month.slice(5, 7) - 1], value: Math.round((+r.bP || 0) - (+r.bV || 0)), tip: `${r.month} · př. ${fmtCZK(r.bP)} · výd. ${fmtCZK(r.bV)} · saldo ${fmtCZK((+r.bP || 0) - (+r.bV || 0))}` }));
+  const crumb = `<div class="energy-crumb"><span class="crumb" onclick="vyucYear=null;renderAll()">Všechny roky</span> ▸ <span class="crumb cur">${vyucYear}</span></div>`;
+  const head = `<div class="etbl-head e5"><div>Měsíc</div><div>Př. běžné</div><div>Výd. běžné</div><div>Výd. celkové</div><div>Do Rozdělení</div></div>`;
+  const body = yr.map(r => {
+    const vi = finObj().vyuctovani.findIndex(x => x.month === r.month);
+    return `<div class="etbl-row e5"><div onclick="editVyuct(${vi})" style="cursor:pointer"><b>${MONTHS_CZ[+r.month.slice(5, 7) - 1]}</b></div>
+      <div style="color:var(--green)">${fmtCZK(r.bP)}</div><div style="color:var(--red)">${fmtCZK(r.bV)}</div><div style="color:var(--ink-muted)">${fmtCZK(r.cV)}</div>
+      <div class="e-num"><button class="btn" style="padding:5px 10px;font-size:12px" onclick="event.stopPropagation();vyuctToZaplaceno('${r.month}')">→ Zaplaceno</button></div></div>`;
+  }).join("");
+  return crumb + `<div class="echart"><div class="echart-h">Měsíční saldo běžné (Kč) — ${vyucYear}</div>${svgBars(bars, "var(--green)", { dec: 0 })}</div>` + head + `<div class="list-wrap">${body}</div>`;
+}
+function vyuctFields(v) {
+  v = v || {};
+  return [
+    { key: "month", label: "Měsíc (YYYY-MM)", value: v.month || new Date().toISOString().slice(0, 7) },
+    { key: "bP", label: "Příjmy běžné (Kč)", value: v.bP != null ? String(v.bP) : "" },
+    { key: "cP", label: "Příjmy celkové (Kč)", value: v.cP != null ? String(v.cP) : "" },
+    { key: "bV", label: "Výdaje běžné (Kč)", value: v.bV != null ? String(v.bV) : "" },
+    { key: "cV", label: "Výdaje celkové (Kč)", value: v.cV != null ? String(v.cV) : "" }
+  ];
+}
+function applyVyuct(v, d) { return { month: (d.month || "").slice(0, 7), bP: evalExpr(d.bP), cP: evalExpr(d.cP), bV: evalExpr(d.bV), cV: evalExpr(d.cV) }; }
+function addVyuct() { openModal("Nový měsíc vyúčtování", vyuctFields({}), d => { const nv = applyVyuct({}, d); const i = finObj().vyuctovani.findIndex(x => x.month === nv.month); if (i >= 0) finObj().vyuctovani[i] = nv; else finObj().vyuctovani.push(nv); }); }
+function editVyuct(i) {
+  const v = finObj().vyuctovani[i]; if (!v) return;
+  openModal("Upravit měsíc", vyuctFields(v).concat([{ key: "_del", label: "Smazat? (napiš ANO)", value: "" }]), d => {
+    if ((d._del || "").trim().toUpperCase() === "ANO") { finObj().vyuctovani.splice(i, 1); return; }
+    finObj().vyuctovani[i] = applyVyuct(v, d);
+  });
+}
+function editSettle() {
+  openModal("Poměr rozúčtování (Bára %)", [{ key: "b", label: "Podíl Báry na běžných výdajích (%)", value: String(Math.round(finObj().settleB * 100)) }], d => { finObj().settleB = Math.max(0, Math.min(100, evalExpr(d.b))) / 100; });
+}
+// běžné výdaje měsíce rozúčtuj a přidej do Zaplaceno (řádek „KB MM/RR“)
+function vyuctToZaplaceno(month) {
+  const v = finObj().vyuctovani.find(x => x.month === month); if (!v) return;
+  const bV = +v.bV || 0; const b = finObj().settleB;
+  const name = "KB " + month.slice(5, 7) + "/" + month.slice(2, 4);
+  const ex = finObj().zaplaceno.findIndex(p => p.what === name);
+  const entry = { what: name, category: "Vyúčtování", month: month + "-01", amountB: Math.round(bV * b * 100) / 100, amountM: Math.round(bV * (1 - b) * 100) / 100, total: bV, status: "zaplaceno", toPay: 0 };
+  if (ex >= 0) { if (!confirm(name + " už v Rozdělení je. Přepsat?")) return; finObj().zaplaceno[ex] = entry; }
+  else finObj().zaplaceno.unshift(entry);
+  save(); renderAll();
+  alert(name + " přidáno do Rozdělení:\nběžné výdaje " + fmtCZK(bV) + "\nBára " + fmtCZK(entry.amountB) + " · Michal " + fmtCZK(entry.amountM));
+}
+
+// ====================== ROZDĚLENÍ (zaplaceno + úvěry) ======================
 function splitHeader() {
   const z = finObj().zaplaceno;
   const tot = z.reduce((s, p) => s + (+p.total || 0), 0);
-  return `
-    <div class="page-header">
-      <div>
-        <div class="page-title">Rozdělení — kdo platí + úvěry</div>
-        <div class="page-subtitle">${z.length} plateb · celkem uhrazeno ${fmtCZK(tot)}</div>
-      </div>
-      <div class="page-actions">
-        <button class="btn" onclick="importFinanceFromJson()">↥ Import (JSON)</button>
-        <button class="btn primary" onclick="addPlatba()">+ Platba</button>
-      </div>
+  return `<div class="page-header">
+      <div><div class="page-title">Rozdělení — kdo platí + úvěry</div><div class="page-subtitle">${z.length} plateb · celkem ${fmtCZK(tot)}</div></div>
+      <div class="page-actions"><button class="btn" onclick="importFinanceFromJson()">↥ Import</button><button class="btn primary" onclick="addPlatba()">+ Platba</button></div>
     </div>`;
 }
 function splitBody() {
   const z = finObj().zaplaceno;
-  if (!z.length && !finObj().loans.length) return `<div class="empty">Zatím prázdné — naimportuj JSON nebo přidej „+ Platba“.</div>`;
   const sumB = z.reduce((s, p) => s + (+p.amountB || 0), 0);
   const sumM = z.reduce((s, p) => s + (+p.amountM || 0), 0);
   const tot = sumB + sumM || 1;
-  // kategorie
   const cats = {};
   z.forEach(p => { const c = p.category || "(bez kategorie)"; cats[c] = cats[c] || { b: 0, m: 0 }; cats[c].b += (+p.amountB || 0); cats[c].m += (+p.amountM || 0); });
-  const catRows = Object.keys(cats).sort((a, b) => (cats[b].b + cats[b].m) - (cats[a].b + cats[a].m)).map(c => {
-    const t = cats[c].b + cats[c].m;
-    return `<div class="etbl-row e5" style="cursor:default"><div><b>${esc(c)}</b></div><div style="color:var(--teal,var(--blue))">${fmtCZK(cats[c].b)}</div><div style="color:var(--purple,var(--accent))">${fmtCZK(cats[c].m)}</div><div>${fmtNum(100 * t / tot, 0)} %</div><div class="e-num">${fmtCZK(t)}</div></div>`;
-  }).join("");
+  const catRows = Object.keys(cats).sort((a, b) => (cats[b].b + cats[b].m) - (cats[a].b + cats[a].m)).map(c => { const t = cats[c].b + cats[c].m;
+    return `<div class="etbl-row e5" style="cursor:default"><div><b>${esc(c)}</b></div><div style="color:var(--teal,var(--blue))">${fmtCZK(cats[c].b)}</div><div style="color:var(--purple,var(--accent))">${fmtCZK(cats[c].m)}</div><div>${fmtNum(100 * t / tot, 0)} %</div><div class="e-num">${fmtCZK(t)}</div></div>`; }).join("");
   const catBars = Object.keys(cats).map(c => ({ label: c.length > 8 ? c.slice(0, 8) + "…" : c, value: Math.round(cats[c].b + cats[c].m), tip: `${c} · ${fmtCZK(cats[c].b + cats[c].m)}` }));
-  // úvěry
-  const loansHtml = finObj().loans.map(l => {
-    const m = (l.schedule || []).reduce((s, x) => s + (+x.m || 0), 0);
-    const b = (l.schedule || []).reduce((s, x) => s + (+x.b || 0), 0);
-    const n = (l.schedule || []).length;
-    const months = (l.schedule || []).map(x => x.month).filter(Boolean).sort();
-    const last = (l.schedule || [])[(l.schedule || []).length - 1] || {};
-    const lastPmt = (+last.m || 0) + (+last.b || 0);
+  const loansHtml = finObj().loans.map((l, li) => {
+    const sm = (l.schedule || []).reduce((s, x) => s + (+x.m || 0), 0), sb = (l.schedule || []).reduce((s, x) => s + (+x.b || 0), 0);
+    const n = (l.schedule || []).length; const months = (l.schedule || []).map(x => x.month).filter(Boolean).sort();
+    const last = (l.schedule || [])[(l.schedule || []).length - 1] || {}; const lastPmt = (+last.m || 0) + (+last.b || 0);
     return `<div class="estat" style="border-top:3px solid var(--accent)">
         <div class="estat-val" style="font-size:18px">${esc(l.name || "Úvěr")}</div>
-        <div class="estat-sub" style="margin-top:8px">Splaceno celkem: <b>${fmtCZK(m + b)}</b> (${n} splátek)</div>
-        <div class="estat-sub">Michal ${fmtCZK(m)} · Bára ${fmtCZK(b)}</div>
-        <div class="estat-sub">Měsíční splátka: ${fmtCZK(lastPmt)}${months.length ? " · " + months[0].slice(0, 7) + " – " + months[months.length - 1].slice(0, 7) : ""}</div>
+        <div class="estat-sub" style="margin-top:8px">Splaceno: <b>${fmtCZK(sm + sb)}</b> (${n} splátek)</div>
+        <div class="estat-sub">Michal ${fmtCZK(sm)} · Bára ${fmtCZK(sb)}</div>
+        <div class="estat-sub">Splátka ${fmtCZK(lastPmt)}${months.length ? " · " + months[0].slice(0, 7) + " – " + months[months.length - 1].slice(0, 7) : ""}</div>
+        <div style="margin-top:8px;display:flex;gap:6px"><button class="btn" style="padding:5px 10px;font-size:12px" onclick="addLoanPayment(${li})">+ Splátka</button><button class="btn" style="padding:5px 10px;font-size:12px" onclick="editLoan(${li})">✎</button></div>
       </div>`;
   }).join("");
   return `
@@ -5434,10 +5555,11 @@ function splitBody() {
       ${statTile("Bára zaplatila", fmtCZK(sumB), fmtNum(100 * sumB / tot, 0) + " %", "var(--teal,var(--blue))")}
       ${statTile("Michal zaplatil", fmtCZK(sumM), fmtNum(100 * sumM / tot, 0) + " %", "var(--purple,var(--accent))")}
     </div>
-    <div class="echart"><div class="echart-h">Výdaje po kategoriích (Kč)</div>${svgBars(catBars, "var(--accent)", { dec: 0 })}</div>
+    ${catBars.length ? `<div class="echart"><div class="echart-h">Výdaje po kategoriích (Kč)</div>${svgBars(catBars, "var(--accent)", { dec: 0 })}</div>` : ""}
     <div class="etbl-head e5"><div>Kategorie</div><div>Bára</div><div>Michal</div><div>Podíl</div><div>Celkem</div></div>
-    <div class="list-wrap">${catRows}</div>
-    ${loansHtml ? `<div class="page-title" style="font-size:22px;margin:18px 0 14px">Úvěry</div><div class="estat-grid">${loansHtml}</div>` : ""}`;
+    <div class="list-wrap">${catRows || `<div class="empty">Žádné platby</div>`}</div>
+    <div class="page-title" style="font-size:22px;margin:18px 0 14px">Úvěry <button class="btn" style="font-size:13px;font-weight:600" onclick="addLoan()">+ Úvěr</button></div>
+    <div class="estat-grid">${loansHtml || `<div class="empty">Zatím žádné úvěry</div>`}</div>`;
 }
 function platbaFields(p) {
   p = p || {};
@@ -5447,16 +5569,27 @@ function platbaFields(p) {
     { key: "category", label: "Kategorie", type: "datalist", options: cats, value: p.category || "" },
     { key: "month", label: "Měsíc", type: "date", value: p.month || "" },
     { key: "amountB", label: "Zaplatila Bára (Kč)", value: p.amountB != null ? String(p.amountB) : "" },
-    { key: "amountM", label: "Zaplatil Michal (Kč)", value: p.amountM != null ? String(p.amountM) : "" },
-    { key: "status", label: "Stav", value: p.status || "zaplaceno" }
+    { key: "amountM", label: "Zaplatil Michal (Kč)", value: p.amountM != null ? String(p.amountM) : "" }
   ];
 }
-function applyPlatba(p, d) {
-  const n = v => v === "" || v == null ? 0 : (parseFloat(String(v).replace(/\s/g, "").replace(",", ".")) || 0);
-  const b = n(d.amountB), m = n(d.amountM);
-  return { what: d.what || "", category: d.category || "", month: d.month || "", amountB: b, amountM: m, total: b + m, status: d.status || "zaplaceno", toPay: 0 };
-}
+function applyPlatba(p, d) { const b = evalExpr(d.amountB), m = evalExpr(d.amountM); return { what: d.what || "", category: d.category || "", month: d.month || "", amountB: b, amountM: m, total: b + m, status: "zaplaceno", toPay: 0 }; }
 function addPlatba() { openModal("Nová platba", platbaFields({}), d => finObj().zaplaceno.unshift(applyPlatba({}, d))); }
+function addLoan() { openModal("Nový úvěr", [{ key: "name", label: "Název úvěru", value: "" }], d => { if (d.name) finObj().loans.push({ name: d.name, schedule: [] }); }); }
+function editLoan(li) {
+  const l = finObj().loans[li]; if (!l) return;
+  openModal("Upravit úvěr", [{ key: "name", label: "Název", value: l.name || "" }, { key: "_del", label: "Smazat celý úvěr? (napiš ANO)", value: "" }], d => {
+    if ((d._del || "").trim().toUpperCase() === "ANO") { finObj().loans.splice(li, 1); return; }
+    l.name = d.name || l.name;
+  });
+}
+function addLoanPayment(li) {
+  const l = finObj().loans[li]; if (!l) return;
+  openModal("Splátka — " + (l.name || "úvěr"), [
+    { key: "month", label: "Měsíc", type: "date", value: new Date().toISOString().slice(0, 10) },
+    { key: "m", label: "Michal (Kč)", value: "" },
+    { key: "b", label: "Bára (Kč)", value: "" }
+  ], d => { if (!l.schedule) l.schedule = []; l.schedule.push({ month: d.month, m: evalExpr(d.m), b: evalExpr(d.b) }); });
+}
 
 function importFinanceFromJson() {
   const inp = document.createElement("input");
@@ -5468,15 +5601,18 @@ function importFinanceFromJson() {
       try {
         const obj = JSON.parse(reader.result);
         const fin = finObj();
-        const has = fin.predikce.length || fin.zaplaceno.length || fin.loans.length;
+        const has = fin.predikce.length || fin.zaplaceno.length || fin.loans.length || fin.rozpocet.length || fin.vyuctovani.length;
         let go = true;
-        if (has) go = confirm("Finance už nějaká data mají.\n\nOK = přepsat je daty ze souboru\nZrušit = nechat stávající (nic se nezmění)");
+        if (has) go = confirm("Finance už nějaká data mají.\n\nOK = přepsat je daty ze souboru\nZrušit = nechat stávající");
         if (!go) return;
         if (obj.predikce) fin.predikce = obj.predikce;
         if (obj.zaplaceno) fin.zaplaceno = obj.zaplaceno;
         if (obj.loans) fin.loans = obj.loans;
+        if (obj.rozpocet) fin.rozpocet = obj.rozpocet;
+        if (obj.vyuctovani) fin.vyuctovani = obj.vyuctovani;
+        if (obj.prijmy != null) fin.prijmy = obj.prijmy;
         save(); renderAll(); if (!currentModule) renderHub();
-        alert("Import financí hotový.\nPredikce: " + fin.predikce.length + " záznamů\nZaplaceno: " + fin.zaplaceno.length + " plateb\nÚvěry: " + fin.loans.length);
+        alert("Import financí hotový.\nPredikce: " + fin.predikce.length + " · Zaplaceno: " + fin.zaplaceno.length + " · Úvěry: " + fin.loans.length + "\nRozpočet: " + fin.rozpocet.length + " · Vyúčtování: " + fin.vyuctovani.length + " měsíců");
       } catch (er) { alert("Soubor se nepodařilo načíst: " + er.message); }
     };
     reader.readAsText(f, "utf-8");
