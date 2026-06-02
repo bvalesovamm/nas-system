@@ -1014,6 +1014,7 @@ mark { background: var(--yellow-bg); color: var(--ink); padding: 0 2px; border-r
 .estat-sub { font-size: 11px; color: var(--ink-muted); margin-top: 4px; }
 .echart { background: var(--bg-card); border: 1px solid var(--line); border-radius: var(--radius-lg); padding: 14px 16px; margin-bottom: 16px; }
 .echart-h { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; color: var(--ink-soft); margin-bottom: 8px; }
+#chartTip { position: fixed; z-index: 9999; display: none; pointer-events: none; background: var(--ink, #2b2b2b); color: #fff; font-size: 12px; font-weight: 600; padding: 7px 10px; border-radius: 8px; box-shadow: 0 6px 20px rgba(0,0,0,.25); max-width: 240px; line-height: 1.4; }
 @media (max-width: 700px) {
   .etbl-head { display: none; }
   .etbl-row.e4 { grid-template-columns: 1.4fr 1fr 1fr; }
@@ -1420,7 +1421,7 @@ const FIREBASE_CONFIG = {
 // PŘIHLÁŠENÍ — appka se přihlašuje přes Firebase Authentication (e-mail + heslo).
 // Heslo NENÍ v kódu — zadáváš ho v přihlašovacím okně a ověřuje ho Firebase.
 // Tohle je jen přihlašovací jméno (rodinný účet), není tajné.
-const FAMILY_EMAIL = "valesovi.kovalovice@gmail.com";
+const FAMILY_EMAIL = ""; // e-mail se pamatuje jen v zařízení (localStorage), není ve veřejném kódu
 
 // Firestore: data jsou uložená v dokumentu „plan/martin" — vše v jednom JSON.
 // Pokud bys časem chtěla, šlo by to rozdělit do více kolekcí, ale takhle je to
@@ -1516,10 +1517,19 @@ function tryUnlock() {
   }
   if (!initFirebaseApp()) return;
 
+  // e-mail se pamatuje v zařízení; poprvé se zeptáme (není ve veřejném kódu)
+  let loginEmail = FAMILY_EMAIL;
+  try { loginEmail = loginEmail || localStorage.getItem("famEmail") || ""; } catch (e) {}
+  if (!loginEmail) {
+    loginEmail = (prompt("Zadej přihlašovací e-mail (uloží se jen v tomto zařízení):") || "").trim();
+    if (!loginEmail) { error.textContent = "Bez e-mailu se nelze přihlásit."; return; }
+    try { localStorage.setItem("famEmail", loginEmail); } catch (e) {}
+  }
+
   error.textContent = "";
   loading.textContent = "Přihlašuji…";
 
-  fb.signInWithEmailAndPassword(auth, FAMILY_EMAIL, entered)
+  fb.signInWithEmailAndPassword(auth, loginEmail, entered)
     .then(() => { loading.textContent = "Načítám data…"; })
     .catch(err => {
       loading.textContent = "";
@@ -1528,6 +1538,9 @@ function tryUnlock() {
         error.textContent = "Příliš mnoho pokusů. Zkus to prosím za chvíli.";
       } else if (code === "auth/network-request-failed") {
         error.textContent = "Chyba sítě — zkontroluj připojení k internetu.";
+      } else if (code === "auth/invalid-email" || code === "auth/user-not-found") {
+        try { localStorage.removeItem("famEmail"); } catch (e) {}
+        error.textContent = "E-mail nesedí — zkus to znovu, appka se na něj zeptá.";
       } else {
         error.textContent = "Špatné heslo.";
       }
@@ -2195,21 +2208,27 @@ function importTasksFromJson() {
       try {
         const obj = JSON.parse(reader.result);
         if (!DB.adminTasks) DB.adminTasks = [];
-        let nA = 0, nC = 0, uA = 0, uC = 0;
+        let nA = 0, nC = 0, uA = 0, uC = 0, sk = 0;
+        const exA = (obj.adminTasks || []).filter(t => t.title && DB.adminTasks.some(x => x.title === t.title)).length;
+        const exC = (obj.careTasks || []).filter(t => t.title && DB.tasks.some(x => x.title === t.title)).length;
+        let overwrite = true;
+        if (exA + exC > 0) overwrite = confirm((exA + exC) + " úkolů se stejným názvem už v appce máš.\n\nOK = přepsat je verzí ze souboru (přijdeš o úpravy, cos u nich dělala v appce)\nZrušit = nechat tvoje a doplnit jen nové");
         (obj.adminTasks || []).forEach(t => {
           if (!t.title) return;
           const i = DB.adminTasks.findIndex(x => x.title === t.title);
-          if (i >= 0) { DB.adminTasks[i] = normalizeImportedTask(t); uA++; } else { DB.adminTasks.push(normalizeImportedTask(t)); nA++; }
+          if (i >= 0) { if (overwrite) { DB.adminTasks[i] = normalizeImportedTask(t); uA++; } else sk++; }
+          else { DB.adminTasks.push(normalizeImportedTask(t)); nA++; }
         });
         (obj.careTasks || []).forEach(t => {
           if (!t.title) return;
           const i = DB.tasks.findIndex(x => x.title === t.title);
-          if (i >= 0) { DB.tasks[i] = normalizeImportedTask(t); uC++; } else { DB.tasks.unshift(normalizeImportedTask(t)); nC++; }
+          if (i >= 0) { if (overwrite) { DB.tasks[i] = normalizeImportedTask(t); uC++; } else sk++; }
+          else { DB.tasks.unshift(normalizeImportedTask(t)); nC++; }
         });
         save();
         renderAll();
         if (!currentModule) renderHub();
-        alert("Import hotový.\nÚkoly (admin): +" + nA + " nových, " + uA + " aktualizováno\nPéče: +" + nC + " nových, " + uC + " aktualizováno\n\n(Úkoly se stejným názvem se přepíšou aktuální verzí ze souboru.)");
+        alert("Import hotový.\nÚkoly (admin): +" + nA + " nových, " + uA + " aktualizováno\nPéče: +" + nC + " nových, " + uC + " aktualizováno" + (sk ? "\nPonecháno beze změny: " + sk : ""));
       } catch (e) {
         alert("Soubor se nepodařilo načíst: " + e.message);
       }
@@ -4923,7 +4942,7 @@ function energyHeader() {
 function energyBody() {
   const sub = `
     <div class="dom-subtabs">
-      <button class="filter-btn ${energyTab === 'data' ? 'active' : ''}" onclick="energyTab='data'; renderAll()">📋 Data</button>
+      <button class="filter-btn ${energyTab === 'data' ? 'active' : ''}" onclick="energyTab='data';energyYear=null;energyMonth=null;renderAll()">📋 Data</button>
       <button class="filter-btn ${energyTab === 'dash' ? 'active' : ''}" onclick="energyTab='dash'; renderAll()">📊 Přehled</button>
     </div>`;
   return sub + (energyTab === "dash" ? energyDashboard() : energyDataTab());
@@ -4980,26 +4999,42 @@ function energyDataTab() {
 }
 
 // --- PŘEHLED: dashboard ---
+function niceNum(x) { if (x <= 0) return 1; const e = Math.floor(Math.log10(x)); const f = x / Math.pow(10, e); let nf; if (f < 1.5) nf = 1; else if (f < 3) nf = 2; else if (f < 7) nf = 5; else nf = 10; return nf * Math.pow(10, e); }
+function niceTicks(min, max, count) { if (max === min) max = min + 1; const step = niceNum((max - min) / count); const start = Math.floor(min / step) * step; const end = Math.ceil(max / step) * step; const t = []; for (let v = start; v <= end + 1e-9; v += step) t.push(Math.round(v * 1000) / 1000); return t; }
+function energyTip(evt, el) {
+  const tip = document.getElementById("chartTip"); if (!tip) return;
+  tip.textContent = el.getAttribute("data-tip") || "";
+  tip.style.display = "block";
+  let x = evt.clientX + 14, y = evt.clientY - 12;
+  if (x + 220 > window.innerWidth) x = evt.clientX - 220;
+  tip.style.left = x + "px"; tip.style.top = y + "px";
+}
+function hideTip() { const tip = document.getElementById("chartTip"); if (tip) tip.style.display = "none"; }
 function svgBars(items, color, opts) {
   opts = opts || {};
   const n = items.length; if (!n) return "";
-  const W = 760, H = 150, padB = 22, padT = 8, padL = 4;
-  const max = Math.max(1e-9, ...items.map(i => Math.abs(i.value)));
-  const hasNeg = items.some(i => i.value < 0);
-  const base = hasNeg ? (padT + (H - padT - padB) / 2) : (H - padB);
-  const avail = hasNeg ? (H - padT - padB) / 2 : (H - padT - padB);
-  const slot = (W - padL * 2) / n;
-  const bw = Math.min(34, slot * 0.7);
-  let out = "";
-  if (hasNeg) out += `<line x1="${padL}" y1="${base}" x2="${W - padL}" y2="${base}" stroke="var(--line)" stroke-width="1"/>`;
+  const W = 760, H = 180, padB = 26, padT = 10, padL = 52, padR = 8;
+  const vals = items.map(i => i.value);
+  const dMax = Math.max(0, ...vals), dMin = Math.min(0, ...vals);
+  const plotH = H - padT - padB;
+  const yOf = v => padT + (dMax - v) / ((dMax - dMin) || 1) * plotH;
+  const ticks = niceTicks(dMin, dMax, 4);
+  let grid = "";
+  ticks.forEach(t => {
+    const yy = yOf(t);
+    grid += `<line x1="${padL}" y1="${yy.toFixed(1)}" x2="${W - padR}" y2="${yy.toFixed(1)}" stroke="var(--line)" stroke-width="1"${t === 0 ? '' : ' stroke-dasharray="3 4"'}/>`;
+    grid += `<text x="${padL - 8}" y="${(yy + 3).toFixed(1)}" font-size="10" text-anchor="end" fill="var(--ink-muted)">${esc(fmtNum(t, opts.dec == null ? 0 : opts.dec))}</text>`;
+  });
+  const slot = (W - padL - padR) / n; const bw = Math.min(34, slot * 0.66);
+  let bars = "";
   items.forEach((it, i) => {
     const x = padL + i * slot + (slot - bw) / 2;
-    const bh = (Math.abs(it.value) / max) * avail;
-    const y = it.value < 0 ? base : base - bh;
-    out += `<rect x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${bw.toFixed(1)}" height="${Math.max(1, bh).toFixed(1)}" rx="3" fill="${it.value < 0 ? 'var(--blue)' : color}"><title>${esc(it.label)}: ${esc(it.disp != null ? it.disp : it.value)}</title></rect>`;
-    out += `<text x="${(x + bw / 2).toFixed(1)}" y="${H - 7}" font-size="9" text-anchor="middle" fill="var(--ink-muted)">${esc(it.label)}</text>`;
+    const y0 = yOf(0), yv = yOf(it.value);
+    const y = Math.min(y0, yv), bh = Math.max(1.5, Math.abs(yv - y0));
+    bars += `<rect x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${bw.toFixed(1)}" height="${bh.toFixed(1)}" rx="3" fill="${it.value < 0 ? 'var(--blue)' : color}" data-tip="${esc(it.tip || (it.label + ': ' + (it.disp != null ? it.disp : it.value)))}" onmousemove="energyTip(event,this)" onmouseleave="hideTip()" style="cursor:pointer"></rect>`;
+    bars += `<text x="${(x + bw / 2).toFixed(1)}" y="${H - 9}" font-size="10" text-anchor="middle" fill="var(--ink-muted)">${esc(it.label)}</text>`;
   });
-  return `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" style="width:100%;height:150px">${out}</svg>`;
+  return `<svg viewBox="0 0 ${W} ${H}" style="width:100%;height:auto;display:block">${grid}${bars}</svg>`;
 }
 function statTile(label, value, sub, accent) {
   return `<div class="estat" style="border-top:3px solid ${accent || 'var(--accent)'}"><div class="estat-val">${value}</div><div class="estat-lab">${esc(label)}</div>${sub ? `<div class="estat-sub">${sub}</div>` : ""}</div>`;
@@ -5011,16 +5046,18 @@ function energyDashboard() {
   const y = (energyYear != null && years.includes(energyYear)) ? energyYear : years[years.length - 1];
   const yrRows = rows.filter(r => +r.date.slice(0, 4) === y);
   const a = aggr(yrRows);
-  // měsíční agregace
   const months = [];
   for (let m = 0; m < 12; m++) {
     const mr = yrRows.filter(r => (+r.date.slice(5, 7) - 1) === m);
     months.push({ m, a: aggr(mr), has: mr.length > 0 });
   }
-  const consBars = months.filter(x => x.has).map(x => ({ label: MONTHS_SH[x.m], value: +x.a.total.toFixed(1), disp: fmtNum(x.a.total) + " m³" }));
-  const costBars = months.filter(x => x.has).map(x => ({ label: MONTHS_SH[x.m], value: Math.round(x.a.cost), disp: fmtCZK(x.a.cost) }));
-  const tempBars = months.filter(x => x.has).map(x => ({ label: MONTHS_SH[x.m], value: x.a.tAvg == null ? 0 : +x.a.tAvg.toFixed(1), disp: fmtNum(x.a.tAvg) + " °C" }));
-  // korelace teplo vs teplota (čím chladněji, tím víc tepla)
+  const consBars = months.filter(x => x.has).map(x => ({ label: MONTHS_SH[x.m], value: +x.a.total.toFixed(1),
+    tip: `${MONTHS_CZ[x.m]} ${y} · spotřeba ${fmtNum(x.a.total)} m³ · ⌀ ${fmtNum(x.a.total / (x.a.days || 1), 2)} m³/den` }));
+  const costBars = months.filter(x => x.has).map(x => ({ label: MONTHS_SH[x.m], value: Math.round(x.a.cost),
+    tip: `${MONTHS_CZ[x.m]} ${y} · náklad ${fmtCZK(x.a.cost)} · ⌀ ${fmtCZK(x.a.cost / (x.a.days || 1))}/den` }));
+  const tempBars = months.filter(x => x.has).map(x => ({ label: MONTHS_SH[x.m], value: x.a.tAvg == null ? 0 : +x.a.tAvg.toFixed(1),
+    tip: `${MONTHS_CZ[x.m]} ${y} · ⌀ ${fmtNum(x.a.tAvg)} °C · min ${fmtNum(x.a.tMin)} · max ${fmtNum(x.a.tMax)} °C` }));
+  // korelace teplo vs teplota
   const pts = yrRows.filter(r => r.temp != null);
   let corr = null;
   if (pts.length > 10) {
@@ -5031,6 +5068,15 @@ function energyDashboard() {
     corr = (dx && dy) ? num / Math.sqrt(dx * dy) : null;
   }
   const yearBtns = years.map(yy => `<button class="filter-btn ${yy === y ? 'active' : ''}" onclick="energyYear=${yy};renderAll()">${yy}</button>`).join("");
+  // --- meziroční srovnání ---
+  const yStats = years.map(yy => ({ yy, a: aggr(rows.filter(r => +r.date.slice(0, 4) === yy)) }));
+  const yConsBars = yStats.map(s => ({ label: String(s.yy), value: +s.a.total.toFixed(0),
+    tip: `${s.yy} · spotřeba ${fmtNum(s.a.total)} m³ · náklad ${fmtCZK(s.a.cost)} · ${s.a.days} dní · ⌀ ${fmtNum(s.a.tAvg)} °C` }));
+  const yCostBars = yStats.map(s => ({ label: String(s.yy), value: Math.round(s.a.cost),
+    tip: `${s.yy} · náklad ${fmtCZK(s.a.cost)} · ${s.a.days} dní` }));
+  const yTable = `<div class="etbl-head e5"><div>Rok</div><div>Teplo</div><div>Voda</div><div>⌀ °C</div><div>Náklad</div></div>` +
+    yStats.map(s => `<div class="etbl-row e5" style="cursor:pointer" onclick="energyTab='data';energyYear=${s.yy};energyMonth=null;renderAll()"><div><b>${s.yy}</b> <span style="color:var(--ink-muted);font-size:12px">· ${s.a.days} dní</span></div><div>${fmtNum(s.a.heat)} m³</div><div>${fmtNum(s.a.water)} m³</div><div>${fmtNum(s.a.tAvg)}</div><div class="e-num">${fmtCZK(s.a.cost)}</div></div>`).join("");
+
   return `
     <div class="filters" style="margin-bottom:16px"><span style="font-size:11px;color:var(--ink-muted);align-self:center;margin-right:4px;font-weight:600;text-transform:uppercase;letter-spacing:.06em">Rok:</span>${yearBtns}</div>
     <div class="estat-grid">
@@ -5039,10 +5085,15 @@ function energyDashboard() {
       ${statTile("Průměrná teplota", fmtNum(a.tAvg) + " °C", `min ${fmtNum(a.tMin)} · max ${fmtNum(a.tMax)} °C`, "var(--blue)")}
       ${statTile("Dní s měřením", a.days + "", `⌀ spotřeba ${fmtNum(a.total / (a.days || 1), 2)} m³/den`, "var(--yellow)")}
     </div>
-    <div class="echart"><div class="echart-h">Spotřeba po měsících (m³)</div>${svgBars(consBars, "var(--accent)")}</div>
-    <div class="echart"><div class="echart-h">Náklad po měsících (Kč)</div>${svgBars(costBars, "var(--green)")}</div>
-    <div class="echart"><div class="echart-h">Průměrná venkovní teplota (°C) — modrá = pod nulou</div>${svgBars(tempBars, "var(--red)")}</div>
-    ${corr != null ? `<p style="color:var(--ink-soft);font-size:13px;line-height:1.6;margin-top:8px">Souvislost teplo × venkovní teplota: korelace <b>${fmtNum(corr, 2)}</b> — ${corr < -0.4 ? "jasně platí „čím chladněji, tím víc tepla“." : corr < -0.1 ? "mírný vztah (chladněji → víc tepla)." : "slabá souvislost."}</p>` : ""}`;
+    <div class="echart"><div class="echart-h">Spotřeba po měsících (m³) — ${y}</div>${svgBars(consBars, "var(--accent)", { dec: 0 })}</div>
+    <div class="echart"><div class="echart-h">Náklad po měsících (Kč) — ${y}</div>${svgBars(costBars, "var(--green)", { dec: 0 })}</div>
+    <div class="echart"><div class="echart-h">Průměrná venkovní teplota (°C) — ${y} · modrá = pod nulou</div>${svgBars(tempBars, "var(--red)", { dec: 0 })}</div>
+    ${corr != null ? `<p style="color:var(--ink-soft);font-size:13px;line-height:1.6;margin:4px 0 22px">Souvislost teplo × venkovní teplota: korelace <b>${fmtNum(corr, 2)}</b> — ${corr < -0.4 ? "jasně platí „čím chladněji, tím víc tepla“." : corr < -0.1 ? "mírný vztah (chladněji → víc tepla)." : "slabá souvislost."}</p>` : ""}
+    <div class="page-title" style="font-size:22px;margin:8px 0 14px">Meziroční srovnání</div>
+    <div class="echart"><div class="echart-h">Roční spotřeba (m³)</div>${svgBars(yConsBars, "var(--accent)", { dec: 0 })}</div>
+    <div class="echart"><div class="echart-h">Roční náklad (Kč)</div>${svgBars(yCostBars, "var(--green)", { dec: 0 })}</div>
+    <div class="list-wrap" style="margin-top:6px">${yTable}</div>
+    <p style="color:var(--ink-muted);font-size:12px;line-height:1.6;margin-top:6px">Pozn.: roky 2023 (jen prosinec) a ${years[years.length - 1]} (zatím rozjetý) jsou neúplné — porovnávej hlavně celé roky.</p>`;
 }
 
 function addEnergyMeasurement() {
@@ -5096,12 +5147,16 @@ function importDomacnostFromJson() {
         const obj = JSON.parse(reader.result);
         if (!DB.houseWorks) DB.houseWorks = [];
         const e = energyObj();
-        let nH = 0, uH = 0, nM = 0;
+        let nH = 0, uH = 0, nM = 0, sk = 0;
+        const keyOf = h => (h.title || "") + "|" + (h.room || "");
+        const exH = (obj.houseWorks || []).filter(h => DB.houseWorks.some(x => keyOf(x) === keyOf(h))).length;
+        let overwrite = true;
+        if (exH > 0) overwrite = confirm(exH + " realizací se stejným názvem už v appce máš.\n\nOK = přepsat je verzí ze souboru (přijdeš o úpravy z appky)\nZrušit = nechat tvoje a doplnit jen nové");
         (obj.houseWorks || []).forEach(h => {
-          const key = (h.title || "") + "|" + (h.room || "");
-          const idx = DB.houseWorks.findIndex(x => (x.title || "") + "|" + (x.room || "") === key);
+          const idx = DB.houseWorks.findIndex(x => keyOf(x) === keyOf(h));
           const item = { title: h.title || "", room: h.room || "", type: h.type || "Realizace", priority: h.priority || "Střední", price: +h.price || 0, dueDate: h.dueDate || "", status: h.status || "Plán", note: h.note || "", subtasks: Array.isArray(h.subtasks) ? h.subtasks.map(s => ({ text: s.text || "", done: !!s.done })) : [], done: !!h.done };
-          if (idx >= 0) { DB.houseWorks[idx] = item; uH++; } else { DB.houseWorks.push(item); nH++; }
+          if (idx >= 0) { if (overwrite) { DB.houseWorks[idx] = item; uH++; } else sk++; }
+          else { DB.houseWorks.push(item); nH++; }
         });
         if (obj.energy) {
           if (obj.energy.settings) e.settings = Object.assign(e.settings, obj.energy.settings);
@@ -5111,7 +5166,7 @@ function importDomacnostFromJson() {
           });
         }
         save(); renderAll(); if (!currentModule) renderHub();
-        alert("Import Domácnosti hotový.\nDům: +" + nH + " nových, " + uH + " aktualizováno\nEnergie: +" + nM + " měření");
+        alert("Import Domácnosti hotový.\nDům: +" + nH + " nových, " + uH + " aktualizováno" + (sk ? ", " + sk + " ponecháno" : "") + "\nEnergie: +" + nM + " měření (duplicity dle data se přeskakují)");
       } catch (er) { alert("Soubor se nepodařilo načíst: " + er.message); }
     };
     reader.readAsText(f, "utf-8");
@@ -5218,5 +5273,6 @@ document.addEventListener("DOMContentLoaded", () => {
 // Když se SDK načte později (po DOMContentLoaded), nic neděláme — initFirebase si na to počká.
 
 </script>
+<div id="chartTip"></div>
 </body>
 </html>
