@@ -943,6 +943,18 @@ mark { background: var(--yellow-bg); color: var(--ink); padding: 0 2px; border-r
 /* ===== HUB (rozcestník modulů) ===== */
 .hub { display: none; min-height: 100vh; padding: 56px 24px 80px; }
 .hub.active { display: block; }
+
+/* ===== Samostatná modulová obrazovka (Úkoly atd.) ===== */
+.module-screen { display: none; min-height: 100vh; padding: 40px 24px 90px; --sec: var(--red); }
+.module-screen.active { display: block; }
+.module-inner { max-width: 920px; margin: 0 auto; }
+.module-head { display: flex; align-items: center; gap: 16px; margin-bottom: 28px; }
+.btn-hub-back { background: var(--bg-card); border: 1px solid var(--line-strong); color: var(--ink-soft); padding: 8px 16px; border-radius: var(--radius); font-family: var(--sans); font-weight: 600; font-size: 13px; cursor: pointer; transition: all .12s; flex: 0 0 auto; }
+.btn-hub-back:hover { background: var(--ink); color: var(--bg-card); border-color: var(--ink); }
+.module-title { font-family: var(--serif); font-size: 26px; font-weight: 600; color: var(--ink); letter-spacing: -0.02em; }
+
+/* ===== Posuvný obal tabulek (aby na mobilu nepřetékaly stránku) ===== */
+.tbl-wrap { width: 100%; overflow-x: auto; -webkit-overflow-scrolling: touch; border-radius: var(--radius-lg); }
 .hub-inner { max-width: 920px; margin: 0 auto; }
 .hub-head { text-align: center; margin-bottom: 40px; }
 .hub-title { font-family: var(--serif); font-size: 34px; font-weight: 600; color: var(--ink); letter-spacing: -0.02em; }
@@ -1066,6 +1078,17 @@ mark { background: var(--yellow-bg); color: var(--ink); padding: 0 2px; border-r
   .tbl { font-size: 12px; }
   .tbl th, .tbl td { padding: 8px 9px; }
 
+  /* Hlavička kalendáře se na mobilu zalomí (jinak přetékala doprava) */
+  .cal-header { flex-wrap: wrap; justify-content: center; row-gap: 8px; }
+  .cal-grid { gap: 3px; }
+  .cal-day { min-height: 50px; padding: 4px 4px 3px; }
+  .cal-day-num { font-size: 12px; }
+  .cal-dayname { font-size: 9px; }
+
+  /* Modulová obrazovka */
+  .module-screen { padding: 24px 16px 90px; }
+  .module-title { font-size: 22px; }
+
   /* Větší doteky a čitelnost */
   .page-title { font-size: 22px; }
   .btn, .filter-btn { min-height: 38px; }
@@ -1075,7 +1098,7 @@ mark { background: var(--yellow-bg); color: var(--ink); padding: 0 2px; border-r
 @media (max-width: 480px) {
   .tiles { grid-template-columns: 1fr; }
   .main { padding: 16px 12px 90px; }
-  .cal-grid { font-size: 12px; }
+  .cal-day { min-height: 44px; }
 }
 </style>
 </head>
@@ -1114,6 +1137,17 @@ mark { background: var(--yellow-bg); color: var(--ink); padding: 0 2px; border-r
       <button class="btn-io" onclick="exportData()">↓ Záloha (JSON)</button>
       <button class="btn-io" onclick="logout()">⎋ Odhlásit</button>
     </div>
+  </div>
+</div>
+
+<!-- Samostatný modul ÚKOLY -->
+<div class="module-screen" id="tasksScreen">
+  <div class="module-inner">
+    <div class="module-head">
+      <button class="btn-hub-back" onclick="goHub()">← Hub</button>
+      <div class="module-title">✅ Úkoly</div>
+    </div>
+    <div id="tasksBody"></div>
   </div>
 </div>
 
@@ -2582,7 +2616,7 @@ function profileInfoBody(p) {
 
 function profileDiagnosesBody() {
   return `
-    <table class="tbl">
+    <div class="tbl-wrap"><table class="tbl">
       <thead><tr><th>Kód</th><th>Diagnóza</th><th>Status</th><th>Poznámka</th><th></th></tr></thead>
       <tbody>
         ${DB.diagnoses.map((d, i) => `
@@ -2597,7 +2631,7 @@ function profileDiagnosesBody() {
             </div></td>
           </tr>`).join("")}
       </tbody>
-    </table>
+    </table></div>
   `;
 }
 
@@ -2707,7 +2741,7 @@ function renderDiagnoses() {
       </div>
     </div>
 
-    <table class="tbl">
+    <div class="tbl-wrap"><table class="tbl">
       <thead><tr><th>Kód</th><th>Diagnóza</th><th>Status</th><th>Poznámka</th><th></th></tr></thead>
       <tbody>
         ${DB.diagnoses.map((d, i) => `
@@ -2723,7 +2757,7 @@ function renderDiagnoses() {
           </tr>
         `).join("")}
       </tbody>
-    </table>
+    </table></div>
   `;
 }
 
@@ -2850,7 +2884,7 @@ function renderGenetics() {
 
     <div class="section">
       <div class="section-title">Synovo přenašečství <div class="section-title-line"></div></div>
-      <table class="tbl">
+      <div class="tbl-wrap"><table class="tbl">
         <thead><tr><th>Gen</th><th>Varianta</th><th>Onemocnění</th><th>Význam</th></tr></thead>
         <tbody>
           ${g.findings.map(f => `
@@ -2861,12 +2895,12 @@ function renderGenetics() {
               <td style="font-size:12.5px;color:var(--ink-soft)">${esc(f.note)}</td>
             </tr>`).join("")}
         </tbody>
-      </table>
+      </table></div>
     </div>
 
     <div class="section">
       <div class="section-title">Přehled rodiny <div class="section-title-line"></div></div>
-      <table class="tbl">
+      <div class="tbl-wrap"><table class="tbl">
         <thead><tr><th>Gen</th><th>Onemocnění</th><th>Otec</th><th>Matka</th><th>Syn</th></tr></thead>
         <tbody>
           ${g.familyMatrix.map(f => `
@@ -2878,12 +2912,12 @@ function renderGenetics() {
               <td>${esc(f.son)}</td>
             </tr>`).join("")}
         </tbody>
-      </table>
+      </table></div>
     </div>
 
     <div class="section">
       <div class="section-title">WES panely u syna <div class="section-title-line"></div></div>
-      <table class="tbl">
+      <div class="tbl-wrap"><table class="tbl">
         <thead><tr><th>Panel</th><th style="width:80px">Geny</th><th>Závěr</th></tr></thead>
         <tbody>
           ${g.panels.map(p => `
@@ -2893,7 +2927,7 @@ function renderGenetics() {
               <td>${esc(p.result)}</td>
             </tr>`).join("")}
         </tbody>
-      </table>
+      </table></div>
     </div>
 
     <div class="grid-2">
@@ -2979,7 +3013,7 @@ function renderContacts() {
       ${specs.map(s => `<button class="filter-btn ${contactFilter === s ? 'active' : ''}" onclick="contactFilter='${s}'; renderAll()">${esc(s)}</button>`).join("")}
     </div>
 
-    <table class="tbl">
+    <div class="tbl-wrap"><table class="tbl">
       <thead><tr><th>Kdo</th><th>Specializace</th><th>Co řeší</th><th>Telefon</th><th>E-mail</th><th>Status</th><th></th></tr></thead>
       <tbody>
         ${filtered.map(c => {
@@ -2999,7 +3033,7 @@ function renderContacts() {
           </tr>`;
         }).join("")}
       </tbody>
-    </table>
+    </table></div>
   `;
 }
 
@@ -3735,7 +3769,7 @@ function renderGrowth() {
     
     <div class="section">
       <div class="section-title">📋 Tabulka měření <div class="section-title-line"></div></div>
-      <table class="tbl">
+      <div class="tbl-wrap"><table class="tbl">
         <thead><tr><th>Datum</th><th>Výška (cm)</th><th>Trend</th><th>Váha (kg)</th><th>Trend</th><th>BMI</th><th>Roční nárůst v/v</th><th>Poznámka</th><th></th></tr></thead>
         <tbody>
           ${[...ms].reverse().map((r, idx) => {
@@ -3782,7 +3816,7 @@ function renderGrowth() {
             </tr>`;
           }).join("")}
         </tbody>
-      </table>
+      </table></div>
     </div>
   `;
 }
@@ -4089,7 +4123,7 @@ function renderSupplements() {
         <button class="filter-btn ${suppFilter === 'Otevřeno' ? 'active' : ''}" onclick="suppFilter='Otevřeno'; renderAll()">Otevřeno</button>
         <button class="filter-btn ${suppFilter === 'Pauza' ? 'active' : ''}" onclick="suppFilter='Pauza'; renderAll()">Pauza</button>
       </div>
-      <table class="tbl">
+      <div class="tbl-wrap"><table class="tbl">
         <thead><tr><th>Doplněk</th><th>Dávka</th><th>Kdy</th><th>Sezóna</th><th>Status</th><th>Poznámka</th><th></th></tr></thead>
         <tbody>
           ${filtered.map(s => {
@@ -4108,12 +4142,12 @@ function renderSupplements() {
             </tr>`;
           }).join("")}
         </tbody>
-      </table>
+      </table></div>
     </div>
 
     <div class="section">
       <div class="section-title">Léky <div class="section-title-line"></div></div>
-      <table class="tbl">
+      <div class="tbl-wrap"><table class="tbl">
         <thead><tr><th>Lék</th><th>Typ</th><th>Použití</th></tr></thead>
         <tbody>
           ${meds.map(m => `
@@ -4123,7 +4157,7 @@ function renderSupplements() {
               <td style="font-size:12.5px;color:var(--ink-soft)">${esc(m.use)}</td>
             </tr>`).join("")}
         </tbody>
-      </table>
+      </table></div>
     </div>
   `;
 }
@@ -4219,7 +4253,7 @@ function renderEquipment() {
     </div>
 
     <div class="section">
-      <table class="tbl">
+      <div class="tbl-wrap"><table class="tbl">
         <thead><tr><th>Položka</th><th>Typ</th><th>Cena</th><th>Status</th><th></th></tr></thead>
         <tbody>
           ${DB.equipment.map((e, i) => `
@@ -4234,7 +4268,7 @@ function renderEquipment() {
               </div></td>
             </tr>`).join("")}
         </tbody>
-      </table>
+      </table></div>
     </div>
 
     <div class="section">
@@ -4302,7 +4336,7 @@ function renderPrinciples() {
 
     <div class="section">
       <div class="section-title">Modelové situace <div class="section-title-line"></div></div>
-      <table class="tbl">
+      <div class="tbl-wrap"><table class="tbl">
         <thead><tr><th>Situace</th><th>Jak ano ✓</th><th>Jak ne ✗</th></tr></thead>
         <tbody>
           ${p.situations.map(s => `
@@ -4312,7 +4346,7 @@ function renderPrinciples() {
               <td style="color:var(--red);font-size:12.5px">${esc(s.no)}</td>
             </tr>`).join("")}
         </tbody>
-      </table>
+      </table></div>
     </div>
 
     <div class="section">
@@ -4486,7 +4520,7 @@ const MODULES = {
     color: "var(--accent)",
     status: () => DB.tasks.filter(t => !t.done).length + " otevřených úkolů"
   },
-  tasks:   { label: "Úkoly",     icon: "✅", color: "var(--blue)",   soon: true },
+  tasks:   { label: "Úkoly",     icon: "✅", color: "var(--red)",    status: () => DB.tasks.filter(t => !t.done).length + " otevřených" },
   finance: { label: "Finance",   icon: "💰", color: "var(--green)",  soon: true },
   home:    { label: "Domácnost", icon: "🏡", color: "var(--yellow)", soon: true }
 };
@@ -4569,7 +4603,7 @@ function hubEvents() {
     if (parseDateIso(a.terminVolaniDate)) evs.push({ iso: a.terminVolaniDate, label: "Volat: " + (a.ambulance || ""), cat: "Volání", module: "care", page: "appointments", assignee: "" });
   });
   (DB.tasks || []).forEach(t => {
-    if (!t.done && !t.repeat && parseDateIso(t.dueDate)) evs.push({ iso: t.dueDate, label: t.title || "", cat: "Úkol", module: "care", page: "tasks", assignee: t.assignee || "" });
+    if (!t.done && !t.repeat && parseDateIso(t.dueDate)) evs.push({ iso: t.dueDate, label: t.title || "", cat: "Úkol", module: "tasks", page: "tasks", assignee: t.assignee || "" });
   });
   return evs;
 }
@@ -4579,7 +4613,7 @@ function hubEventsExpanded(year, month) {
   const evs = hubEvents().filter(e => { const d = parseDateIso(e.iso); return d && d.getFullYear() === year && d.getMonth() === month; });
   (DB.tasks || []).forEach(t => {
     if (t.done || !t.repeat) return;
-    taskOccurrencesInMonth(t, year, month).forEach(iso => evs.push({ iso, label: t.title || "", cat: "Úkol", module: "care", page: "tasks", assignee: t.assignee || "", repeat: true }));
+    taskOccurrencesInMonth(t, year, month).forEach(iso => evs.push({ iso, label: t.title || "", cat: "Úkol", module: "tasks", page: "tasks", assignee: t.assignee || "", repeat: true }));
   });
   return evs;
 }
@@ -4596,7 +4630,7 @@ function refreshHubCalendar() {
 function hubCalShift(delta) { hubCalMonth = new Date(hubCalMonth.getFullYear(), hubCalMonth.getMonth() + delta, 1); hubDayDetail = null; refreshHubCalendar(); }
 function hubCalToday() { const d = new Date(); hubCalMonth = new Date(d.getFullYear(), d.getMonth(), 1); hubDayDetail = d.toISOString().slice(0, 10); refreshHubCalendar(); }
 function hubShowDay(iso) { hubDayDetail = (hubDayDetail === iso) ? null : iso; refreshHubCalendar(); }
-function hubOpenEvent(module, page) { enterModule(module); goto(page); }
+function hubOpenEvent(module, page) { enterModule(module); if (module === "care") goto(page); }
 
 function renderHubCalendar() {
   if (!DB) return "";
@@ -4678,15 +4712,33 @@ function enterModule(key) {
   if (!MODULES[key] || MODULES[key].soon) return;
   currentModule = key;
   document.getElementById("hubScreen").classList.remove("active");
-  document.getElementById("app").classList.remove("locked");
-  if (key === "care") renderAll();
+  if (key === "care") {
+    document.getElementById("app").classList.remove("locked");
+    renderAll();
+  } else if (key === "tasks") {
+    document.getElementById("app").classList.add("locked");
+    document.getElementById("tasksScreen").classList.add("active");
+    currentPage = "tasks";
+    renderTasksModule();
+  }
 }
 
 function goHub() {
   currentModule = null;
   document.getElementById("app").classList.add("locked");
+  const ts = document.getElementById("tasksScreen");
+  if (ts) ts.classList.remove("active");
   document.getElementById("hubScreen").classList.add("active");
   renderHub();
+}
+
+// Samostatný modul Úkoly: znovu používá existující stránku úkolů (renderTasks).
+function renderTasksModule() {
+  const body = document.getElementById("tasksBody");
+  if (!body || !DB) return;
+  const sc = document.getElementById("tasksScreen");
+  if (sc) sc.style.setProperty("--sec", "var(--red)");
+  body.innerHTML = renderTasks();
 }
 
 function goto(page) {
@@ -4736,6 +4788,7 @@ const PAGE_ACCENT = {
 
 function renderAll() {
   if (!DB) return; // ještě nejsou načtená data
+  if (currentModule === "tasks") { renderTasksModule(); return; }
   const renderer = PAGES[currentPage] || renderDashboard;
   const appEl = document.getElementById("app");
   if (appEl) appEl.style.setProperty("--sec", PAGE_ACCENT[currentPage] || "var(--accent)");
