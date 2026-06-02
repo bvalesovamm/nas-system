@@ -1239,6 +1239,17 @@ mark { background: var(--yellow-bg); color: var(--ink); padding: 0 2px; border-r
   </div>
 </div>
 
+<!-- Obrazovka FINANCE -->
+<div class="module-screen" id="financeScreen">
+  <div class="module-inner">
+    <div class="module-head">
+      <button class="btn-hub-back" onclick="goHub()">🏠 Hub</button>
+      <div class="module-title">💰 Finance</div>
+    </div>
+    <div id="financeBody"></div>
+  </div>
+</div>
+
 <!-- Obrazovka ZÁLOHY -->
 <div class="module-screen" id="backupScreen">
   <div class="module-inner">
@@ -1346,6 +1357,7 @@ const SEED = {
   "adminTasks": [],
   "houseWorks": [],
   "energy": { "settings": { "pricePerM3": 0, "priceOld": 0, "priceChangeDate": "", "koef": 1, "fixedPerYear": 0, "unit": "m³" }, "measurements": [] },
+  "finance": { "predikce": [], "zaplaceno": [], "loans": [] },
   "examinations": [],
   "genetics": {
     "summary": "",
@@ -1600,6 +1612,7 @@ function loadData() {
       if (!DB.adminTasks) DB.adminTasks = [];
       if (!DB.houseWorks) DB.houseWorks = [];
       if (!DB.energy) DB.energy = { settings: { pricePerM3: 0, priceOld: 0, priceChangeDate: "", koef: 1, fixedPerYear: 0, unit: "m³" }, measurements: [] };
+      if (!DB.finance) DB.finance = { predikce: [], zaplaceno: [], loans: [] };
       if (!DB.meta) DB.meta = { version: 1 };
       migrateAssignees(DB);
     }
@@ -1615,6 +1628,7 @@ function loadData() {
       if (!remoteData.adminTasks) remoteData.adminTasks = [];
       if (!remoteData.houseWorks) remoteData.houseWorks = [];
       if (!remoteData.energy) remoteData.energy = { settings: { pricePerM3: 0, priceOld: 0, priceChangeDate: "", koef: 1, fixedPerYear: 0, unit: "m³" }, measurements: [] };
+      if (!remoteData.finance) remoteData.finance = { predikce: [], zaplaceno: [], loans: [] };
       if (!remoteData.meta) remoteData.meta = { version: 1 };
       migrateAssignees(remoteData);
       // Update DB jen pokud se opravdu změnilo (jinak by uložení vlastních dat smyklo render)
@@ -2250,6 +2264,7 @@ function maybeDailySnapshot() {
   // objemná historická data energií do snímku nedáváme (kvůli limitu velikosti); obnova přes Import
   const slim = JSON.parse(JSON.stringify(DB));
   if (slim.energy) slim.energy.measurements = [];
+  if (slim.finance) slim.finance.predikce = [];
   snapshots.push({ date: today, ts: Date.now(), data: slim });
   if (snapshots.length > 7) snapshots = snapshots.slice(-7); // drž posledních 7 dní
   save();
@@ -4458,7 +4473,7 @@ const MODULES = {
     status: () => DB.tasks.filter(t => !t.done).length + " otevřených úkolů"
   },
   tasks:   { label: "Úkoly",     icon: "✅", color: "var(--red)",    status: () => (DB.adminTasks || []).filter(t => !t.done).length + " úkolů" },
-  finance: { label: "Finance",   icon: "💰", color: "var(--green)",  soon: true },
+  finance: { label: "Finance",   icon: "💰", color: "var(--green)",  status: () => { const z = (DB.finance && DB.finance.zaplaceno) || []; const p = (DB.finance && DB.finance.predikce) || []; if (!z.length && !p.length) return "připraveno k importu"; return (p.length ? p.length + " záznamů" : "") + (z.length ? (p.length ? " · " : "") + z.length + " plateb" : ""); } },
   home:    { label: "Domácnost", icon: "🏡", color: "var(--yellow)", status: () => { const a = (DB.houseWorks || []).filter(h => !h.done); return a.length + " prací · " + fmtCZK(a.reduce((s, h) => s + (+h.price || 0), 0)); } }
 };
 
@@ -4670,6 +4685,10 @@ function enterModule(key) {
     document.getElementById("app").classList.add("locked");
     document.getElementById("domacnostScreen").classList.add("active");
     renderDomacnostModule();
+  } else if (key === "finance") {
+    document.getElementById("app").classList.add("locked");
+    document.getElementById("financeScreen").classList.add("active");
+    renderFinanceModule();
   }
 }
 
@@ -4680,6 +4699,8 @@ function goHub() {
   if (ts) ts.classList.remove("active");
   const ds = document.getElementById("domacnostScreen");
   if (ds) ds.classList.remove("active");
+  const fs2 = document.getElementById("financeScreen");
+  if (fs2) fs2.classList.remove("active");
   const bs = document.getElementById("backupScreen");
   if (bs) bs.classList.remove("active");
   document.getElementById("hubScreen").classList.add("active");
@@ -5175,6 +5196,313 @@ function importDomacnostFromJson() {
 }
 
 
+// ============================================================
+// MODUL FINANCE — Vývoj (predikce cashflow) a Rozdělení (zaplaceno + úvěry)
+// ============================================================
+
+let financeTab = "vyvoj";  // 'vyvoj' | 'split'
+let finYear = null;        // drill-down predikce
+let finMonth = null;
+
+function finObj() {
+  if (!DB.finance) DB.finance = {};
+  if (!Array.isArray(DB.finance.predikce)) DB.finance.predikce = [];
+  if (!Array.isArray(DB.finance.zaplaceno)) DB.finance.zaplaceno = [];
+  if (!Array.isArray(DB.finance.loans)) DB.finance.loans = [];
+  return DB.finance;
+}
+// příjmy = mzdy + ostatní (+ úspory jen na úvodním řádku); výdaje jsou záporné
+function predIncome(e, opening) { return (opening ? (+e.uspory || 0) : 0) + (+e.mzdaM || 0) + (+e.mzdaB || 0) + (+e.ostatni || 0); }
+function predExpense(e) { return (+e.vydOstatni || 0) + (+e.vydBezne || 0); } // záporné
+function predRows() {
+  const arr = [...finObj().predikce].sort((a, b) => String(a.date).localeCompare(String(b.date)));
+  let bal = 0;
+  return arr.map((e, i) => {
+    const inc = predIncome(e, i === 0);
+    const exp = predExpense(e);
+    bal += inc + exp;
+    return { ...e, inc, exp, net: inc + exp, bal };
+  });
+}
+function finYears(rows) { return [...new Set(rows.map(r => +String(r.date).slice(0, 4)))].sort((a, b) => a - b); }
+function predAggr(rows) {
+  return {
+    days: rows.length,
+    inc: rows.reduce((s, r) => s + r.inc, 0),
+    exp: rows.reduce((s, r) => s + r.exp, 0),
+    net: rows.reduce((s, r) => s + r.inc + r.exp, 0),
+    endBal: rows.length ? rows[rows.length - 1].bal : 0
+  };
+}
+
+function renderFinanceModule() {
+  const body = document.getElementById("financeBody");
+  if (!body || !DB) return;
+  const sc = document.getElementById("financeScreen");
+  if (sc) sc.style.setProperty("--sec", "var(--green)");
+  body.innerHTML = renderFinance();
+}
+function renderFinance() {
+  const isS = financeTab === "split";
+  const header = isS ? splitHeader() : vyvojHeader();
+  const tabs = `
+    <div class="dom-tabs">
+      <button class="dom-tab ${!isS ? 'active' : ''}" onclick="financeTab='vyvoj'; finYear=null; finMonth=null; renderAll()">📈 Vývoj — cashflow</button>
+      <button class="dom-tab ${isS ? 'active' : ''}" onclick="financeTab='split'; renderAll()">🤝 Rozdělení — kdo platí + úvěry</button>
+    </div>`;
+  return header + tabs + (isS ? splitBody() : vyvojBody());
+}
+
+// ---------- VÝVOJ (cashflow) ----------
+function vyvojHeader() {
+  const rows = predRows();
+  const range = rows.length ? `${rows[0].date} – ${rows[rows.length - 1].date}` : "zatím prázdné";
+  return `
+    <div class="page-header">
+      <div>
+        <div class="page-title">Vývoj — cashflow</div>
+        <div class="page-subtitle">${rows.length} záznamů · ${esc(range)}</div>
+      </div>
+      <div class="page-actions">
+        <button class="btn" onclick="importFinanceFromJson()">↥ Import (JSON)</button>
+        <button class="btn primary" onclick="addPredikce()">+ Záznam</button>
+      </div>
+    </div>`;
+}
+function vyvojBody() {
+  const sub = `<div class="dom-subtabs">
+      <button class="filter-btn ${finMonth == null && finYear == null ? 'active' : ''}" onclick="finYear=null;finMonth=null;renderAll()">📊 Přehled</button>
+      <button class="filter-btn ${(finYear != null) ? 'active' : ''}" onclick="if(finYear==null){finYear=(finYears(predRows())[0]||new Date().getFullYear())};renderAll()">📋 Data</button>
+    </div>`;
+  if (finYear != null) return sub + vyvojData();
+  return sub + vyvojDash();
+}
+function vyvojDash() {
+  const rows = predRows();
+  if (!rows.length) return `<div class="empty">Zatím žádné záznamy — naimportuj JSON nebo přidej „+ Záznam“.</div>`;
+  const today = new Date().toISOString().slice(0, 10);
+  const past = rows.filter(r => r.date <= today);
+  const nowBal = past.length ? past[past.length - 1].bal : rows[0].bal;
+  const endBal = rows[rows.length - 1].bal;
+  let min = rows[0], max = rows[0];
+  rows.forEach(r => { if (r.bal < min.bal) min = r; if (r.bal > max.bal) max = r; });
+  const a = predAggr(rows);
+  // měsíční koncové zůstatky → spojnice
+  const byMonth = {};
+  rows.forEach(r => { const k = r.date.slice(0, 7); byMonth[k] = r.bal; });
+  const mkeys = Object.keys(byMonth).sort();
+  const balLine = mkeys.map(k => ({ label: k.slice(2).replace("-", "/"), value: Math.round(byMonth[k]),
+    tip: `${k} · zůstatek ${fmtCZK(byMonth[k])}` }));
+  // měsíční příjmy/výdaje (net) bars pro aktuální/poslední rok
+  const years = finYears(rows);
+  const yNow = years.includes(+today.slice(0, 4)) ? +today.slice(0, 4) : years[years.length - 1];
+  const netBars = [];
+  for (let m = 0; m < 12; m++) {
+    const mr = rows.filter(r => +r.date.slice(0, 4) === yNow && (+r.date.slice(5, 7) - 1) === m);
+    if (!mr.length) continue;
+    const ag = predAggr(mr);
+    netBars.push({ label: MONTHS_SH[m], value: Math.round(ag.net),
+      tip: `${MONTHS_CZ[m]} ${yNow} · příjmy ${fmtCZK(ag.inc)} · výdaje ${fmtCZK(ag.exp)} · saldo ${fmtCZK(ag.net)}` });
+  }
+  const minColor = min.bal < 0 ? "var(--red)" : "var(--yellow)";
+  return `
+    <div class="estat-grid">
+      ${statTile("Zůstatek dnes", fmtCZK(nowBal), today, "var(--accent)")}
+      ${statTile("Nejnižší zůstatek", fmtCZK(min.bal), "kolem " + min.date, minColor)}
+      ${statTile("Konečný zůstatek", fmtCZK(endBal), "k " + rows[rows.length - 1].date, "var(--green)")}
+      ${statTile("Příjmy / výdaje celkem", fmtCZK(a.inc), "výdaje " + fmtCZK(a.exp), "var(--blue)")}
+    </div>
+    ${min.bal < 0 ? `<p style="color:var(--red);font-size:13px;font-weight:600;margin:0 0 16px">⚠️ Pozor: predikce jde kolem ${esc(min.date)} do mínusu (${fmtCZK(min.bal)}).</p>` : ""}
+    <div class="echart"><div class="echart-h">Vývoj zůstatku po měsících (Kč)</div>${svgLine(balLine, "var(--accent)")}</div>
+    <div class="echart"><div class="echart-h">Měsíční saldo (příjmy − výdaje) — ${yNow} · modrá = mínus</div>${svgBars(netBars, "var(--green)", { dec: 0 })}</div>
+    <p style="color:var(--ink-muted);font-size:12px;line-height:1.6">Zůstatek počítám čistě z příjmů a výdajů (úspory na startu = počáteční stav). Na začátku sedí na Excel, dál se může lišit, protože v listu byly ruční úpravy zůstatku — tahle verze je konzistentní a přepočítá se i po tvých úpravách.</p>`;
+}
+function vyvojData() {
+  const rows = predRows();
+  let crumb = `<div class="energy-crumb"><span class="crumb ${finMonth == null ? 'cur' : ''}" onclick="finMonth=null;renderAll()">${finYear}</span>`;
+  if (finMonth != null) crumb += ` ▸ <span class="crumb cur">${MONTHS_CZ[finMonth]}</span>`;
+  crumb += `</div>`;
+  if (finMonth == null) {
+    const head = `<div class="etbl-head e5"><div>Měsíc</div><div>Příjmy</div><div>Výdaje</div><div>Saldo</div><div>Zůstatek</div></div>`;
+    let body = "";
+    for (let m = 0; m < 12; m++) {
+      const mr = rows.filter(r => +r.date.slice(0, 4) === finYear && (+r.date.slice(5, 7) - 1) === m);
+      if (!mr.length) continue;
+      const a = predAggr(mr);
+      body += `<div class="etbl-row e5" onclick="finMonth=${m};renderAll()">
+        <div><b>${MONTHS_CZ[m]}</b></div>
+        <div style="color:var(--green)">${fmtCZK(a.inc)}</div>
+        <div style="color:var(--red)">${fmtCZK(a.exp)}</div>
+        <div>${fmtCZK(a.net)}</div>
+        <div class="e-num">${fmtCZK(a.endBal)}</div></div>`;
+    }
+    return crumb + head + `<div class="list-wrap">${body || `<div class="empty">Žádné záznamy v ${finYear}.</div>`}</div>`;
+  }
+  const dr = rows.filter(r => +r.date.slice(0, 4) === finYear && (+r.date.slice(5, 7) - 1) === finMonth);
+  const head = `<div class="etbl-head e5"><div>Datum / co</div><div>Příjem</div><div>Výdaj</div><div>Saldo</div><div>Zůstatek</div></div>`;
+  const body = dr.map(r => {
+    const fi = finObj().predikce.findIndex(x => x.date === r.date && (x.who || "") === (r.who || "") && (x.detail || "") === (r.detail || ""));
+    const label = (r.who || r.detail || r.date.slice(8, 10) + ".").toString();
+    return `<div class="etbl-row e5" onclick="editPredikce(${fi})">
+      <div><b>${esc(r.date.slice(8, 10))}.</b> ${esc((r.who || r.detail || "").slice(0, 22))}</div>
+      <div style="color:var(--green)">${r.inc ? fmtCZK(r.inc) : ""}</div>
+      <div style="color:var(--red)">${r.exp ? fmtCZK(r.exp) : ""}</div>
+      <div>${fmtCZK(r.net)}</div>
+      <div class="e-num">${fmtCZK(r.bal)}</div></div>`;
+  }).join("");
+  return crumb + head + `<div class="list-wrap">${body}</div>`;
+}
+function predFields(e) {
+  e = e || {};
+  return [
+    { key: "date", label: "Datum", type: "date", value: e.date || new Date().toISOString().slice(0, 10) },
+    { key: "who", label: "Kdo / co", value: e.who || "" },
+    { key: "detail", label: "Detail (volitelné)", value: e.detail || "" },
+    { key: "mzdaM", label: "Mzda Michal (+)", value: e.mzdaM != null ? String(e.mzdaM) : "" },
+    { key: "mzdaB", label: "Mzda Bára (+)", value: e.mzdaB != null ? String(e.mzdaB) : "" },
+    { key: "ostatni", label: "Ostatní příjem (+)", value: e.ostatni != null ? String(e.ostatni) : "" },
+    { key: "vydBezne", label: "Výdaje běžné (zadej kladně, odečte se)", value: e.vydBezne != null ? String(Math.abs(e.vydBezne)) : "" },
+    { key: "vydOstatni", label: "Výdaje ostatní (zadej kladně, odečte se)", value: e.vydOstatni != null ? String(Math.abs(e.vydOstatni)) : "" },
+    { key: "uspory", label: "Počáteční úspory (jen úvodní řádek)", value: e.uspory != null ? String(e.uspory) : "" },
+    { key: "note", label: "Poznámka", value: e.note || "" }
+  ];
+}
+function applyPred(e, d) {
+  const n = v => v === "" || v == null ? 0 : (parseFloat(String(v).replace(/\s/g, "").replace(",", ".")) || 0);
+  return { date: d.date, who: d.who || "", detail: d.detail || "", note: d.note || "",
+    mzdaM: n(d.mzdaM), mzdaB: n(d.mzdaB), ostatni: n(d.ostatni), uspory: n(d.uspory),
+    vydBezne: -Math.abs(n(d.vydBezne)), vydOstatni: -Math.abs(n(d.vydOstatni)) };
+}
+function addPredikce() { openModal("Nový záznam", predFields({}), d => finObj().predikce.push(applyPred({}, d))); }
+function editPredikce(i) {
+  const e = finObj().predikce[i]; if (!e) return;
+  const fields = predFields(e).concat([{ key: "_del", label: "Smazat? (napiš ANO)", value: "" }]);
+  openModal("Upravit záznam", fields, d => {
+    if ((d._del || "").trim().toUpperCase() === "ANO") { finObj().predikce.splice(i, 1); return; }
+    finObj().predikce[i] = applyPred(e, d);
+  });
+}
+
+// ---------- ROZDĚLENÍ (zaplaceno + úvěry) ----------
+function splitHeader() {
+  const z = finObj().zaplaceno;
+  const tot = z.reduce((s, p) => s + (+p.total || 0), 0);
+  return `
+    <div class="page-header">
+      <div>
+        <div class="page-title">Rozdělení — kdo platí + úvěry</div>
+        <div class="page-subtitle">${z.length} plateb · celkem uhrazeno ${fmtCZK(tot)}</div>
+      </div>
+      <div class="page-actions">
+        <button class="btn" onclick="importFinanceFromJson()">↥ Import (JSON)</button>
+        <button class="btn primary" onclick="addPlatba()">+ Platba</button>
+      </div>
+    </div>`;
+}
+function splitBody() {
+  const z = finObj().zaplaceno;
+  if (!z.length && !finObj().loans.length) return `<div class="empty">Zatím prázdné — naimportuj JSON nebo přidej „+ Platba“.</div>`;
+  const sumB = z.reduce((s, p) => s + (+p.amountB || 0), 0);
+  const sumM = z.reduce((s, p) => s + (+p.amountM || 0), 0);
+  const tot = sumB + sumM || 1;
+  // kategorie
+  const cats = {};
+  z.forEach(p => { const c = p.category || "(bez kategorie)"; cats[c] = cats[c] || { b: 0, m: 0 }; cats[c].b += (+p.amountB || 0); cats[c].m += (+p.amountM || 0); });
+  const catRows = Object.keys(cats).sort((a, b) => (cats[b].b + cats[b].m) - (cats[a].b + cats[a].m)).map(c => {
+    const t = cats[c].b + cats[c].m;
+    return `<div class="etbl-row e5" style="cursor:default"><div><b>${esc(c)}</b></div><div style="color:var(--teal,var(--blue))">${fmtCZK(cats[c].b)}</div><div style="color:var(--purple,var(--accent))">${fmtCZK(cats[c].m)}</div><div>${fmtNum(100 * t / tot, 0)} %</div><div class="e-num">${fmtCZK(t)}</div></div>`;
+  }).join("");
+  const catBars = Object.keys(cats).map(c => ({ label: c.length > 8 ? c.slice(0, 8) + "…" : c, value: Math.round(cats[c].b + cats[c].m), tip: `${c} · ${fmtCZK(cats[c].b + cats[c].m)}` }));
+  // úvěry
+  const loansHtml = finObj().loans.map(l => {
+    const m = (l.schedule || []).reduce((s, x) => s + (+x.m || 0), 0);
+    const b = (l.schedule || []).reduce((s, x) => s + (+x.b || 0), 0);
+    const n = (l.schedule || []).length;
+    const months = (l.schedule || []).map(x => x.month).filter(Boolean).sort();
+    const last = (l.schedule || [])[(l.schedule || []).length - 1] || {};
+    const lastPmt = (+last.m || 0) + (+last.b || 0);
+    return `<div class="estat" style="border-top:3px solid var(--accent)">
+        <div class="estat-val" style="font-size:18px">${esc(l.name || "Úvěr")}</div>
+        <div class="estat-sub" style="margin-top:8px">Splaceno celkem: <b>${fmtCZK(m + b)}</b> (${n} splátek)</div>
+        <div class="estat-sub">Michal ${fmtCZK(m)} · Bára ${fmtCZK(b)}</div>
+        <div class="estat-sub">Měsíční splátka: ${fmtCZK(lastPmt)}${months.length ? " · " + months[0].slice(0, 7) + " – " + months[months.length - 1].slice(0, 7) : ""}</div>
+      </div>`;
+  }).join("");
+  return `
+    <div class="estat-grid">
+      ${statTile("Celkem uhrazeno", fmtCZK(tot), z.length + " plateb", "var(--green)")}
+      ${statTile("Bára zaplatila", fmtCZK(sumB), fmtNum(100 * sumB / tot, 0) + " %", "var(--teal,var(--blue))")}
+      ${statTile("Michal zaplatil", fmtCZK(sumM), fmtNum(100 * sumM / tot, 0) + " %", "var(--purple,var(--accent))")}
+    </div>
+    <div class="echart"><div class="echart-h">Výdaje po kategoriích (Kč)</div>${svgBars(catBars, "var(--accent)", { dec: 0 })}</div>
+    <div class="etbl-head e5"><div>Kategorie</div><div>Bára</div><div>Michal</div><div>Podíl</div><div>Celkem</div></div>
+    <div class="list-wrap">${catRows}</div>
+    ${loansHtml ? `<div class="page-title" style="font-size:22px;margin:18px 0 14px">Úvěry</div><div class="estat-grid">${loansHtml}</div>` : ""}`;
+}
+function platbaFields(p) {
+  p = p || {};
+  const cats = [...new Set(finObj().zaplaceno.map(x => x.category).filter(Boolean))].sort();
+  return [
+    { key: "what", label: "Co", value: p.what || "" },
+    { key: "category", label: "Kategorie", type: "datalist", options: cats, value: p.category || "" },
+    { key: "month", label: "Měsíc", type: "date", value: p.month || "" },
+    { key: "amountB", label: "Zaplatila Bára (Kč)", value: p.amountB != null ? String(p.amountB) : "" },
+    { key: "amountM", label: "Zaplatil Michal (Kč)", value: p.amountM != null ? String(p.amountM) : "" },
+    { key: "status", label: "Stav", value: p.status || "zaplaceno" }
+  ];
+}
+function applyPlatba(p, d) {
+  const n = v => v === "" || v == null ? 0 : (parseFloat(String(v).replace(/\s/g, "").replace(",", ".")) || 0);
+  const b = n(d.amountB), m = n(d.amountM);
+  return { what: d.what || "", category: d.category || "", month: d.month || "", amountB: b, amountM: m, total: b + m, status: d.status || "zaplaceno", toPay: 0 };
+}
+function addPlatba() { openModal("Nová platba", platbaFields({}), d => finObj().zaplaceno.unshift(applyPlatba({}, d))); }
+
+function importFinanceFromJson() {
+  const inp = document.createElement("input");
+  inp.type = "file"; inp.accept = "application/json,.json";
+  inp.onchange = () => {
+    const f = inp.files && inp.files[0]; if (!f) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      try {
+        const obj = JSON.parse(reader.result);
+        const fin = finObj();
+        const has = fin.predikce.length || fin.zaplaceno.length || fin.loans.length;
+        let go = true;
+        if (has) go = confirm("Finance už nějaká data mají.\n\nOK = přepsat je daty ze souboru\nZrušit = nechat stávající (nic se nezmění)");
+        if (!go) return;
+        if (obj.predikce) fin.predikce = obj.predikce;
+        if (obj.zaplaceno) fin.zaplaceno = obj.zaplaceno;
+        if (obj.loans) fin.loans = obj.loans;
+        save(); renderAll(); if (!currentModule) renderHub();
+        alert("Import financí hotový.\nPredikce: " + fin.predikce.length + " záznamů\nZaplaceno: " + fin.zaplaceno.length + " plateb\nÚvěry: " + fin.loans.length);
+      } catch (er) { alert("Soubor se nepodařilo načíst: " + er.message); }
+    };
+    reader.readAsText(f, "utf-8");
+  };
+  inp.click();
+}
+
+// spojnicový graf (běžící zůstatek)
+function svgLine(points, color) {
+  const n = points.length; if (!n) return "";
+  const W = 760, H = 180, padB = 26, padT = 10, padL = 58, padR = 8;
+  const vals = points.map(p => p.value);
+  const dMax = Math.max(0, ...vals), dMin = Math.min(0, ...vals);
+  const plotH = H - padT - padB, plotW = W - padL - padR;
+  const yOf = v => padT + (dMax - v) / ((dMax - dMin) || 1) * plotH;
+  const xOf = i => n === 1 ? padL + plotW / 2 : padL + i / (n - 1) * plotW;
+  const ticks = niceTicks(dMin, dMax, 4);
+  const grid = ticks.map(t => { const yy = yOf(t); return `<line x1="${padL}" y1="${yy.toFixed(1)}" x2="${W - padR}" y2="${yy.toFixed(1)}" stroke="var(--line)"${t === 0 ? ' stroke-width="1.5"' : ' stroke-dasharray="3 4"'}/><text x="${padL - 8}" y="${(yy + 3).toFixed(1)}" font-size="10" text-anchor="end" fill="var(--ink-muted)">${esc(fmtNum(t, 0))}</text>`; }).join("");
+  const d = points.map((p, i) => `${i ? "L" : "M"}${xOf(i).toFixed(1)} ${yOf(p.value).toFixed(1)}`).join(" ");
+  const dots = points.map((p, i) => `<circle cx="${xOf(i).toFixed(1)}" cy="${yOf(p.value).toFixed(1)}" r="3" fill="${p.value < 0 ? 'var(--red)' : color}" data-tip="${esc(p.tip || '')}" onmousemove="energyTip(event,this)" onmouseleave="hideTip()" style="cursor:pointer"/>`).join("");
+  const step = Math.ceil(n / 12);
+  const xl = points.map((p, i) => (n <= 12 || i % step === 0) ? `<text x="${xOf(i).toFixed(1)}" y="${H - 9}" font-size="9" text-anchor="middle" fill="var(--ink-muted)">${esc(p.label)}</text>` : "").join("");
+  return `<svg viewBox="0 0 ${W} ${H}" style="width:100%;height:auto;display:block">${grid}<path d="${d}" fill="none" stroke="${color}" stroke-width="2"/>${dots}${xl}</svg>`;
+}
+
+
 function goto(page) {
   $$(".nav-item").forEach(n => n.classList.toggle("active", n.dataset.page === page));
   currentPage = page;
@@ -5223,6 +5551,7 @@ function renderAll() {
   if (!DB) return; // ještě nejsou načtená data
   if (currentModule === "tasks") { renderTasksModule(); return; }
   if (currentModule === "home") { renderDomacnostModule(); return; }
+  if (currentModule === "finance") { renderFinanceModule(); return; }
   const renderer = PAGES[currentPage] || renderDashboard;
   const appEl = document.getElementById("app");
   if (appEl) appEl.style.setProperty("--sec", PAGE_ACCENT[currentPage] || "var(--accent)");
