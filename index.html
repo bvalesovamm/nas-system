@@ -958,6 +958,23 @@ mark { background: var(--yellow-bg); color: var(--ink); padding: 0 2px; border-r
 
 /* Poznámka u úkolu (může být dlouhá – z Excel komentářů) */
 .task-note { display: block; width: 100%; margin-top: 5px; font-size: 12px; color: var(--ink-muted); line-height: 1.5; white-space: normal; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+
+/* KANBAN úkolů */
+.kanban { display: flex; gap: 14px; overflow-x: auto; -webkit-overflow-scrolling: touch; padding-bottom: 10px; align-items: flex-start; }
+.kan-col { flex: 0 0 300px; max-width: 300px; background: var(--bg-elev); border: 1px solid var(--line); border-radius: var(--radius-lg); padding: 10px; }
+.kan-col-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-weight: 700; font-size: 12px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--ink-soft); padding: 4px 6px 10px; }
+.kan-count { background: var(--accent); color: #fff; border-radius: 10px; font-size: 11px; padding: 1px 8px; font-weight: 700; }
+.kan-card { display: flex; gap: 10px; background: var(--bg-card); border: 1px solid var(--line); border-radius: var(--radius); padding: 11px 12px; margin-bottom: 9px; cursor: pointer; transition: box-shadow 0.12s, transform 0.12s; }
+.kan-card:hover { box-shadow: var(--shadow); transform: translateY(-1px); }
+.kan-check { flex: 0 0 20px; width: 20px; height: 20px; border: 2px solid var(--line-strong); border-radius: 6px; margin-top: 1px; cursor: pointer; }
+.kan-check.done { background: var(--accent); border-color: var(--accent); }
+.kan-cbody { flex: 1; min-width: 0; }
+.kan-title { font-weight: 600; font-size: 14px; line-height: 1.35; word-break: break-word; }
+.kan-title.done { text-decoration: line-through; color: var(--ink-muted); }
+.kan-note { font-size: 12px; color: var(--ink-muted); line-height: 1.45; margin-top: 4px; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+.kan-meta { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-top: 8px; }
+.kan-date { font-size: 12px; color: var(--ink-soft); font-weight: 600; }
+@media (max-width: 900px) { .kan-col { flex: 0 0 82%; max-width: 82%; } }
 .hub-inner { max-width: 920px; margin: 0 auto; }
 .hub-head { text-align: center; margin-bottom: 40px; }
 .hub-title { font-family: var(--serif); font-size: 34px; font-weight: 600; color: var(--ink); letter-spacing: -0.02em; }
@@ -1492,6 +1509,7 @@ function loadData() {
       if (!DB.exerciseLog) DB.exerciseLog = [];
       if (!DB.adminTasks) DB.adminTasks = [];
       if (!DB.meta) DB.meta = { version: 1 };
+      migrateAssignees(DB);
     }
   }).then(() => {
     // Po počátečním načtení / seedu spustíme live listener
@@ -1504,6 +1522,7 @@ function loadData() {
       if (!remoteData.exerciseLog) remoteData.exerciseLog = [];
       if (!remoteData.adminTasks) remoteData.adminTasks = [];
       if (!remoteData.meta) remoteData.meta = { version: 1 };
+      migrateAssignees(remoteData);
       // Update DB jen pokud se opravdu změnilo (jinak by uložení vlastních dat smyklo render)
       if (JSON.stringify(DB) !== JSON.stringify(remoteData)) {
         DB = remoteData;
@@ -1552,6 +1571,11 @@ function setSyncStatus(state, text) {
 // ============================================================
 // SAVE — zápis do Firestore (s debounce kvůli rychlým úpravám)
 // ============================================================
+
+function migrateAssignees(db) {
+  const map = { "Já": "Bára", "Partner": "Michal" };
+  ["tasks", "adminTasks"].forEach(k => (db[k] || []).forEach(t => { if (map[t.assignee]) t.assignee = map[t.assignee]; }));
+}
 
 function save() {
   if (!firestore || !DB) return;
@@ -1673,6 +1697,8 @@ function openModal(title, fields, onSave) {
     } else if (f.type === "datalist") {
       const opts = (f.options || []).map(o => `<option value="${esc(o)}"></option>`).join("");
       return `<div class="field"><label>${esc(f.label)}</label><input type="text" list="dl-${f.key}" data-key="${f.key}" value="${val}" placeholder="${esc(f.placeholder || "")}" autocomplete="off"><datalist id="dl-${f.key}">${opts}</datalist></div>`;
+    } else if (f.type === "date") {
+      return `<div class="field"><label>${esc(f.label)}</label><input type="date" data-key="${f.key}" value="${val}"></div>`;
     } else {
       return `<div class="field"><label>${esc(f.label)}</label><input type="text" data-key="${f.key}" value="${val}"></div>`;
     }
@@ -1945,31 +1971,48 @@ function taskList(store) {
   return DB.tasks;
 }
 
-function taskRow(t, idx, store) {
-  store = store || "care";
-  const priority = t.priority || "Střední";
-  const isDone = t.done || t.status === "Hotovo" || t.status === "Splněno";
-  return `
-    <div class="item-row">
-      <div class="check ${isDone ? 'done' : ''}" onclick="toggleTask('${store}',${idx})"></div>
-      <div class="item-body">
-        <div class="item-title ${isDone ? 'done' : ''}">${esc(t.title || '')}</div>
-        <div class="item-meta">
-          ${priorityTag(priority)}
-          ${t.category ? `<span class="tag neutral">${esc(t.category)}</span>` : ''}
-          ${t.deadline ? `<span style="color:var(--ink-muted)">📅 ${esc(t.deadline)}</span>` : ''}
-          ${t.dueDate ? `<span style="color:var(--ink-muted)">📆 ${esc(t.dueDate)}</span>` : ''}
-          ${t.repeat ? `<span class="tag neutral">↻ ${esc(repeatLabel(t.repeat))}</span>` : ''}
-          ${assigneeBadge(t.assignee)}
-          ${t.contact ? `<span class="task-note">${esc(t.contact)}</span>` : ''}
-        </div>
-      </div>
-      <div class="row-actions">
-        <button class="icon-btn" onclick="editTask('${store}',${idx})" title="Upravit">✎</button>
-        <button class="icon-btn" onclick="deleteTask('${store}',${idx})" title="Smazat">✕</button>
-      </div>
-    </div>
-  `;
+const TASK_ASSIGNEES = ["(nikdo)", "Bára", "Michal", "Oba"];
+const REPEAT_OPTIONS = ["Ne", "Týdně", "Měsíčně", "Ročně", "Denně"];
+
+// Opakování se odvozuje z vybraného data (žádné ruční psaní dne).
+function repeatFromDate(freqLabel, dueDate) {
+  const d = parseDateIso(dueDate);
+  if (freqLabel === "Denně") return { freq: "daily" };
+  if (freqLabel === "Týdně") return { freq: "weekly", weekday: d ? d.getDay() : 1 };
+  if (freqLabel === "Měsíčně") return { freq: "monthly", day: d ? d.getDate() : 1 };
+  if (freqLabel === "Ročně") return { freq: "yearly", month: d ? d.getMonth() : 0, day: d ? d.getDate() : 1 };
+  return null;
+}
+function repeatFreqLabel(r) {
+  if (!r) return "Ne";
+  return r.freq === "daily" ? "Denně" : r.freq === "weekly" ? "Týdně" : r.freq === "monthly" ? "Měsíčně" : r.freq === "yearly" ? "Ročně" : "Ne";
+}
+
+// Sdílená pole formuláře pro nový i upravovaný úkol
+function taskFormFields(store, t) {
+  t = t || {};
+  const cats = [...new Set(taskList(store).map(x => x.category).filter(c => c))].sort();
+  return [
+    { key: "title", label: "Úkol", value: t.title || "" },
+    { key: "category", label: "Kategorie (vyber nebo napiš novou)", type: "datalist", options: cats, value: t.category || "", placeholder: "např. Dům, Provoz, Projekt…" },
+    { key: "dueDate", label: "Datum (z kalendáře)", type: "date", value: t.dueDate || "" },
+    { key: "assignee", label: "Řešitel", type: "select", options: TASK_ASSIGNEES, value: t.assignee || "(nikdo)" },
+    { key: "repeatFreq", label: "Opakování (odvodí se z data)", type: "select", options: REPEAT_OPTIONS, value: repeatFreqLabel(t.repeat) },
+    { key: "priority", label: "Priorita", type: "select", options: ["Vysoká", "Střední", "Nízká", "Plánováno", "Stálé"], value: t.priority || "Střední" },
+    { key: "status", label: "Status", type: "select", options: ["Otevřeno", "Hotovo", "Průběžně", "Zrušeno"], value: t.status || "Otevřeno" },
+    { key: "contact", label: "Poznámka", type: "textarea", value: t.contact || "" }
+  ];
+}
+
+function applyTaskForm(t, data) {
+  const repeat = repeatFromDate(data.repeatFreq, data.dueDate);
+  const assignee = data.assignee === "(nikdo)" ? "" : data.assignee;
+  delete data.repeatFreq;
+  const done = data.status === "Hotovo" || data.status === "Splněno";
+  const out = { ...t, ...data, assignee, repeat, done };
+  if (done && !out.completedDate) out.completedDate = new Date().toISOString().slice(0, 10);
+  if (!done) out.completedDate = "";
+  return out;
 }
 
 function toggleTask(store, i) {
@@ -1995,46 +2038,15 @@ function deleteTask(store, i) {
 function editTask(store, i) {
   const list = taskList(store);
   const t = list[i];
-  const rf = t.repeat ? (t.repeat.freq === "daily" ? "Denně" : t.repeat.freq === "weekly" ? "Týdně" : "Měsíčně") : "Ne";
-  const rw = t.repeat ? (t.repeat.freq === "weekly" ? WEEKDAYS_CZ[t.repeat.weekday ?? 1] : t.repeat.freq === "monthly" ? String(t.repeat.day || 1) : "") : "";
-  openModal("Upravit úkol", [
-    { key: "title", label: "Úkol", value: t.title },
-    { key: "category", label: "Kategorie", value: t.category || "" },
-    { key: "priority", label: "Priorita", type: "select", options: ["Vysoká", "Střední", "Nízká", "Plánováno", "Stálé"], value: t.priority || "Střední" },
-    { key: "deadline", label: "Termín (text, volitelné)", value: t.deadline || "" },
-    { key: "dueDate", label: "Přesné datum (RRRR-MM-DD, pro kalendář)", value: t.dueDate || "" },
-    { key: "assignee", label: "Řešitel", type: "select", options: ["(nikdo)", "Já", "Partner", "Oba"], value: t.assignee || "(nikdo)" },
-    { key: "repeatFreq", label: "Opakování", type: "select", options: ["Ne", "Denně", "Týdně", "Měsíčně"], value: rf },
-    { key: "repeatWhen", label: "Opakovat v (Po–Ne týdně / 1–31 měsíčně)", value: rw },
-    { key: "status", label: "Status", type: "select", options: ["Otevřeno", "Hotovo", "Průběžně", "Zrušeno"], value: t.status || "Otevřeno" },
-    { key: "contact", label: "Poznámka / kontakt", type: "textarea", value: t.contact || "" }
-  ], data => {
-    const repeat = buildRepeat(data.repeatFreq, data.repeatWhen);
-    const assignee = data.assignee === "(nikdo)" ? "" : data.assignee;
-    delete data.repeatFreq; delete data.repeatWhen;
-    list[i] = { ...t, ...data, assignee, repeat, done: data.status === "Hotovo" || data.status === "Splněno" };
-    if (list[i].done && !list[i].completedDate) list[i].completedDate = new Date().toISOString().slice(0, 10);
+  openModal("Upravit úkol", taskFormFields(store, t), data => {
+    list[i] = applyTaskForm(t, data);
   });
 }
 
 function addTask(store) {
   store = store || "care";
-  openModal("Nový úkol", [
-    { key: "title", label: "Úkol", value: "" },
-    { key: "category", label: "Kategorie", value: "" },
-    { key: "priority", label: "Priorita", type: "select", options: ["Vysoká", "Střední", "Nízká", "Plánováno", "Stálé"], value: "Střední" },
-    { key: "deadline", label: "Termín (text, volitelné)", value: "" },
-    { key: "dueDate", label: "Přesné datum (RRRR-MM-DD, pro kalendář)", value: "" },
-    { key: "assignee", label: "Řešitel", type: "select", options: ["(nikdo)", "Já", "Partner", "Oba"], value: "(nikdo)" },
-    { key: "repeatFreq", label: "Opakování", type: "select", options: ["Ne", "Denně", "Týdně", "Měsíčně"], value: "Ne" },
-    { key: "repeatWhen", label: "Opakovat v (Po–Ne týdně / 1–31 měsíčně)", value: "" },
-    { key: "status", label: "Status", type: "select", options: ["Otevřeno", "Hotovo", "Průběžně"], value: "Otevřeno" },
-    { key: "contact", label: "Poznámka / kontakt", type: "textarea", value: "" }
-  ], data => {
-    const repeat = buildRepeat(data.repeatFreq, data.repeatWhen);
-    const assignee = data.assignee === "(nikdo)" ? "" : data.assignee;
-    delete data.repeatFreq; delete data.repeatWhen;
-    taskList(store).unshift({ ...data, assignee, repeat, done: data.status === "Hotovo", completedDate: "" });
+  openModal("Nový úkol", taskFormFields(store, {}), data => {
+    taskList(store).unshift(applyTaskForm({}, data));
   });
 }
 
@@ -2060,17 +2072,21 @@ function importTasksFromJson() {
       try {
         const obj = JSON.parse(reader.result);
         if (!DB.adminTasks) DB.adminTasks = [];
-        let nA = 0, nC = 0;
+        let nA = 0, nC = 0, uA = 0, uC = 0;
         (obj.adminTasks || []).forEach(t => {
-          if (t.title && !DB.adminTasks.some(x => x.title === t.title)) { DB.adminTasks.push(normalizeImportedTask(t)); nA++; }
+          if (!t.title) return;
+          const i = DB.adminTasks.findIndex(x => x.title === t.title);
+          if (i >= 0) { DB.adminTasks[i] = normalizeImportedTask(t); uA++; } else { DB.adminTasks.push(normalizeImportedTask(t)); nA++; }
         });
         (obj.careTasks || []).forEach(t => {
-          if (t.title && !DB.tasks.some(x => x.title === t.title)) { DB.tasks.unshift(normalizeImportedTask(t)); nC++; }
+          if (!t.title) return;
+          const i = DB.tasks.findIndex(x => x.title === t.title);
+          if (i >= 0) { DB.tasks[i] = normalizeImportedTask(t); uC++; } else { DB.tasks.unshift(normalizeImportedTask(t)); nC++; }
         });
         save();
         renderAll();
         if (!currentModule) renderHub();
-        alert("Import hotový.\nÚkoly (admin): +" + nA + "\nPéče: +" + nC + "\n\n(Už importované se nepřidávají znovu.)");
+        alert("Import hotový.\nÚkoly (admin): +" + nA + " nových, " + uA + " aktualizováno\nPéče: +" + nC + " nových, " + uC + " aktualizováno\n\n(Úkoly se stejným názvem se přepíšou aktuální verzí ze souboru.)");
       } catch (e) {
         alert("Soubor se nepodařilo načíst: " + e.message);
       }
@@ -2190,70 +2206,106 @@ function restoreFromFile() {
 // PAGE: TASKS
 // ============================================================
 
-let taskFilter = "all";
-let taskCategoryFilter = "all";
 let taskAssigneeFilter = "all"; // filtr úkolů podle řešitele
+let taskView = "active";        // 'active' (kanban) | 'done' (splněno)
+
+function fmtDateShort(iso) {
+  const d = parseDateIso(iso);
+  if (!d) return "";
+  return d.getDate() + ". " + (d.getMonth() + 1) + ".";
+}
+
+function taskCard(t, idx, store) {
+  const isDone = t.done || t.status === "Hotovo" || t.status === "Splněno";
+  const dateLbl = t.dueDate ? fmtDateShort(t.dueDate) : (t.deadline || "");
+  return `
+    <div class="kan-card" onclick="editTask('${store}',${idx})">
+      <div class="kan-check ${isDone ? 'done' : ''}" onclick="event.stopPropagation();toggleTask('${store}',${idx})"></div>
+      <div class="kan-cbody">
+        <div class="kan-title ${isDone ? 'done' : ''}">${esc(t.title || '')}</div>
+        ${t.contact ? `<div class="kan-note">${esc(t.contact)}</div>` : ''}
+        <div class="kan-meta">
+          ${dateLbl ? `<span class="kan-date">📆 ${esc(dateLbl)}</span>` : ''}
+          ${t.repeat ? `<span class="tag neutral">↻ ${esc(repeatLabel(t.repeat))}</span>` : ''}
+          ${assigneeBadge(t.assignee)}
+        </div>
+      </div>
+    </div>`;
+}
+
+function doneRow(t, idx, store) {
+  return `
+    <div class="item-row">
+      <div class="item-body">
+        <div class="item-title done">${esc(t.title || '')}</div>
+        <div class="item-meta">
+          ${t.category ? `<span class="tag neutral">${esc(t.category)}</span>` : ''}
+          ${t.completedDate ? `<span style="color:var(--ink-muted)">hotovo ${esc(t.completedDate)}</span>` : ''}
+        </div>
+      </div>
+      <div class="row-actions" style="opacity:1">
+        <button class="btn" onclick="toggleTask('${store}',${idx})">↩ Obnovit</button>
+        <button class="icon-btn" onclick="deleteTask('${store}',${idx})" title="Smazat natrvalo">✕</button>
+      </div>
+    </div>`;
+}
 
 function renderTasks(store) {
   store = store || "care";
   const list = taskList(store);
-  const cats = [...new Set(list.map(t => t.category).filter(c => c))].sort();
+  const af = taskAssigneeFilter;
+  const matchA = t => af === "all" || (t.assignee || "") === af || t.assignee === "Oba";
+  const isDone = t => t.done || t.status === "Hotovo" || t.status === "Splněno";
 
-  let filtered = list.filter(t => {
-    if (taskFilter === "all") return true;
-    if (taskFilter === "active") return !t.done && t.status !== "Hotovo";
-    if (taskFilter === "done") return t.done || t.status === "Hotovo";
-    return t.priority === taskFilter;
-  });
+  const openTasks = list.filter(t => !isDone(t) && matchA(t));
+  const doneTasks = list.filter(t => isDone(t) && matchA(t));
+  const openCnt = list.filter(t => !isDone(t)).length;
+  const doneCnt = list.filter(t => isDone(t)).length;
 
-  if (taskCategoryFilter !== "all") {
-    filtered = filtered.filter(t => t.category === taskCategoryFilter);
-  }
-  if (taskAssigneeFilter !== "all") {
-    filtered = filtered.filter(t => (t.assignee || "") === taskAssigneeFilter || t.assignee === "Oba");
-  }
+  const assigneeBtns = ["all", "Bára", "Michal", "Oba"].map(a =>
+    `<button class="filter-btn ${af === a ? 'active' : ''}" onclick="taskAssigneeFilter='${a}'; renderAll()">${a === 'all' ? 'Vše' : a}</button>`).join("");
 
-  const priorityOrder = { "Vysoká": 1, "Střední": 2, "Nízká": 3, "Plánováno": 4, "Stálé": 5 };
-  filtered.sort((a, b) => (priorityOrder[a.priority] || 99) - (priorityOrder[b.priority] || 99));
-
-  const openCnt = list.filter(t => !t.done && t.status !== "Hotovo").length;
-  const highCnt = list.filter(t => t.priority === "Vysoká" && !t.done && t.status !== "Hotovo").length;
-  const heading = store === "admin" ? "Admin úkoly" : "Úkoly";
-
-  return `
+  let head = `
     <div class="page-header">
       <div>
-        <div class="page-title">${heading}</div>
-        <div class="page-subtitle">${openCnt} otevřených · ${highCnt} s vysokou prioritou · ${list.length} celkem</div>
+        <div class="page-title">Úkoly</div>
+        <div class="page-subtitle">${openCnt} aktivních · ${doneCnt} splněných</div>
       </div>
       <div class="page-actions">
         <button class="btn primary" onclick="addTask('${store}')">+ Nový úkol</button>
       </div>
     </div>
-
     <div class="filters">
-      ${[
-        ["all","Vše"],["Vysoká","Vysoká"],["Střední","Střední"],["Nízká","Nízká"],["Plánováno","Plánováno"],["Stálé","Stálé"],["active","Otevřené"],["done","Hotové"]
-      ].map(([v,lab]) => `
-        <button class="filter-btn ${taskFilter === v ? 'active' : ''}" onclick="taskFilter='${v}'; renderAll()">${lab}</button>
-      `).join("")}
+      <button class="filter-btn ${taskView === 'active' ? 'active' : ''}" onclick="taskView='active'; renderAll()">Aktivní</button>
+      <button class="filter-btn ${taskView === 'done' ? 'active' : ''}" onclick="taskView='done'; renderAll()">Splněno · ${doneCnt}</button>
     </div>
-    ${cats.length > 0 ? `
-    <div class="filters" style="margin-top:-8px">
-      <span style="font-size:11px;color:var(--ink-muted);align-self:center;margin-right:4px;font-weight:600;text-transform:uppercase;letter-spacing:0.06em">Kategorie:</span>
-      <button class="filter-btn ${taskCategoryFilter === 'all' ? 'active' : ''}" onclick="taskCategoryFilter='all'; renderAll()">Vše</button>
-      ${cats.map(c => `<button class="filter-btn ${taskCategoryFilter === c ? 'active' : ''}" onclick="taskCategoryFilter='${esc(c)}'; renderAll()">${esc(c)}</button>`).join("")}
-    </div>` : ''}
-
     <div class="filters" style="margin-top:-8px">
       <span style="font-size:11px;color:var(--ink-muted);align-self:center;margin-right:4px;font-weight:600;text-transform:uppercase;letter-spacing:0.06em">Řešitel:</span>
-      ${["all", "Já", "Partner", "Oba"].map(a => `<button class="filter-btn ${taskAssigneeFilter === a ? 'active' : ''}" onclick="taskAssigneeFilter='${a}'; renderAll()">${a === 'all' ? 'Vše' : a}</button>`).join("")}
-    </div>
+      ${assigneeBtns}
+    </div>`;
 
-    <div class="list-wrap">
-      ${filtered.length ? filtered.map(t => taskRow(t, list.indexOf(t), store)).join("") : `<div class="empty">Žádné úkoly v tomto filtru</div>`}
-    </div>
-  `;
+  if (taskView === "done") {
+    return head + `
+      <div class="list-wrap">
+        ${doneTasks.length ? doneTasks.map(t => doneRow(t, list.indexOf(t), store)).join("") : `<div class="empty">Žádné splněné úkoly</div>`}
+      </div>`;
+  }
+
+  // KANBAN — sloupce podle kategorií, v každém podle data
+  const byCat = {};
+  openTasks.forEach(t => { const c = t.category || "(bez kategorie)"; (byCat[c] = byCat[c] || []).push(t); });
+  const cats = Object.keys(byCat).sort((a, b) =>
+    a === "(bez kategorie)" ? 1 : b === "(bez kategorie)" ? -1 : a.localeCompare(b, "cs"));
+  const dkey = t => t.dueDate || "9999-12-31";
+  cats.forEach(c => byCat[c].sort((a, b) => dkey(a).localeCompare(dkey(b))));
+
+  const cols = cats.map(c => `
+    <div class="kan-col">
+      <div class="kan-col-head">${esc(c)}<span class="kan-count">${byCat[c].length}</span></div>
+      ${byCat[c].map(t => taskCard(t, list.indexOf(t), store)).join("")}
+    </div>`).join("");
+
+  return head + `<div class="kanban">${cats.length ? cols : `<div class="empty">Žádné aktivní úkoly — přidej nový tlačítkem „+ Nový úkol“.</div>`}</div>`;
 }
 
 // ============================================================
@@ -4267,11 +4319,11 @@ let hubDayDetail = null;
 let hubCalAssignee = "all"; // filtr hub kalendáře podle řešitele
 
 // Pomocníci pro úkoly: řešitelé, opakování
-const ASSIGNEES = ["", "Já", "Partner", "Oba"];
+const ASSIGNEES = ["", "Bára", "Michal", "Oba"];
 const WEEKDAYS_CZ = ["Ne", "Po", "Út", "St", "Čt", "Pá", "So"]; // index = JS getDay()
 function assigneeBadge(a) {
   if (!a) return "";
-  const col = a === "Já" ? "var(--teal)" : a === "Partner" ? "var(--purple)" : "var(--accent)";
+  const col = a === "Bára" ? "var(--teal)" : a === "Michal" ? "var(--purple)" : "var(--accent)";
   return `<span class="tag" style="background:${col};color:#fff">${esc(a)}</span>`;
 }
 function repeatLabel(r) {
@@ -4279,6 +4331,7 @@ function repeatLabel(r) {
   if (r.freq === "daily") return "denně";
   if (r.freq === "weekly") return "týdně · " + (WEEKDAYS_CZ[r.weekday ?? 1] || "Po");
   if (r.freq === "monthly") return "měsíčně · " + (r.day || 1) + ".";
+  if (r.freq === "yearly") return "ročně · " + (r.day || 1) + ". " + ((r.month ?? 0) + 1) + ".";
   return "";
 }
 function parseWeekdayCz(s) {
@@ -4299,6 +4352,7 @@ function taskOccurrencesInMonth(t, year, month) {
   if (r.freq === "daily") { for (let d = 1; d <= last; d++) out.push(isoOf(year, month, d)); }
   else if (r.freq === "weekly") { for (let d = 1; d <= last; d++) { if (new Date(year, month, d).getDay() === (r.weekday ?? 1)) out.push(isoOf(year, month, d)); } }
   else if (r.freq === "monthly") { out.push(isoOf(year, month, Math.min(r.day || 1, last))); }
+  else if (r.freq === "yearly") { if (month === (r.month ?? 0)) out.push(isoOf(year, month, Math.min(r.day || 1, last))); }
   return out;
 }
 
@@ -4418,7 +4472,7 @@ function renderHubCalendar() {
       </div>
       <div style="display:flex;gap:6px;align-items:center;margin-top:12px;flex-wrap:wrap">
         <span style="font-size:11px;color:var(--ink-muted);margin-right:2px">Řešitel:</span>
-        ${["all", "Já", "Partner", "Oba"].map(a => `<button class="filter-btn ${hubCalAssignee === a ? "active" : ""}" onclick="hubCalAssignee='${a}'; refreshHubCalendar()">${a === "all" ? "Vše" : a}</button>`).join("")}
+        ${["all", "Bára", "Michal", "Oba"].map(a => `<button class="filter-btn ${hubCalAssignee === a ? "active" : ""}" onclick="hubCalAssignee='${a}'; refreshHubCalendar()">${a === "all" ? "Vše" : a}</button>`).join("")}
       </div>
       <div style="display:flex;gap:18px;margin-top:14px;font-size:11px;color:var(--ink-muted);flex-wrap:wrap">
         ${legend}
@@ -4470,8 +4524,7 @@ function goto(page) {
 }
 
 function gotoTasksWithPriority(priority) {
-  taskFilter = priority;
-  taskCategoryFilter = "all";
+  taskView = "active";
   goto('tasks');
 }
 
