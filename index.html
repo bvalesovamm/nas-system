@@ -65,6 +65,13 @@
   --radius-lg: 10px;
   --shadow: 0 1px 2px rgba(26,24,20,0.04), 0 2px 8px rgba(26,24,20,0.03);
   --shadow-lg: 0 4px 12px rgba(26,24,20,0.08), 0 12px 32px rgba(26,24,20,0.06);
+  --ok: #4a6b3a; --ok-bg: #dfe6d3;
+  --warn: #8a6914; --warn-bg: #f0e4c4;
+  --danger: #a8412a; --danger-bg: #f4dcd3;
+  --info: #2c4f6b; --info-bg: #d4e0ea;
+  --fs-xs: 11px; --fs-sm: 12px; --fs-base: 13px; --fs-md: 15px; --fs-lg: 18px; --fs-xl: 22px;
+  --sp-1: 4px; --sp-2: 8px; --sp-3: 12px; --sp-4: 16px; --sp-5: 24px; --sp-6: 36px;
+  --focus-ring: 0 0 0 3px rgba(107,68,35,0.22);
 }
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -184,16 +191,17 @@ body {
   display: flex;
   align-items: flex-end;
   justify-content: space-between;
-  padding-bottom: 20px;
-  margin-bottom: 28px;
+  gap: 16px;
+  padding-bottom: 18px;
+  margin-bottom: 26px;
   border-bottom: 1px solid var(--line);
 }
 .page-title {
   font-family: var(--serif);
   font-weight: 600;
-  font-size: 36px;
+  font-size: 30px;
   letter-spacing: -0.02em;
-  line-height: 1;
+  line-height: 1.05;
   color: var(--ink);
 }
 .page-subtitle {
@@ -233,11 +241,13 @@ body {
   border: 1px solid var(--line-strong);
   background: var(--bg-elev);
   color: var(--ink-soft);
-  transition: all 0.12s;
+  transition: background .12s, border-color .12s, color .12s, box-shadow .12s, transform .04s;
 }
-.btn:hover { background: var(--ink); color: var(--bg-card); border-color: var(--ink); }
+.btn:hover { background: var(--bg); border-color: var(--ink-soft); color: var(--ink); }
+.btn:active { transform: translateY(1px); }
+.btn:focus-visible { outline: none; box-shadow: var(--focus-ring); }
 .btn.primary { background: var(--ink); color: var(--bg-card); border-color: var(--ink); }
-.btn.primary:hover { background: var(--accent); border-color: var(--accent); }
+.btn.primary:hover { background: var(--accent); border-color: var(--accent); color: #fff; }
 
 /* ===== Cards & sections ===== */
 .section { margin-bottom: 36px; }
@@ -688,9 +698,10 @@ body {
   background: var(--bg-elev);
   border: 1px solid var(--line);
   color: var(--ink-soft);
-  transition: all 0.12s;
+  transition: background .12s, border-color .12s, color .12s, box-shadow .12s;
 }
 .filter-btn:hover { border-color: var(--ink-soft); }
+.filter-btn:focus-visible { outline: none; box-shadow: var(--focus-ring); }
 .filter-btn.active { background: var(--ink); color: var(--bg-card); border-color: var(--ink); }
 
 /* ===== Edit modal ===== */
@@ -989,8 +1000,11 @@ mark { background: var(--yellow-bg); color: var(--ink); padding: 0 2px; border-r
 
 /* DOMÁCNOST */
 .dom-tabs { display: flex; gap: 8px; margin: 4px 0 20px; flex-wrap: wrap; }
-.dom-tab { background: var(--bg-elev); border: 1px solid var(--line); color: var(--ink-soft); padding: 9px 16px; border-radius: 999px; font-family: var(--sans); font-weight: 600; font-size: 13px; cursor: pointer; transition: all .12s; }
+.dom-tab { background: var(--bg-elev); border: 1px solid var(--line); color: var(--ink-soft); padding: 9px 16px; border-radius: 999px; font-family: var(--sans); font-weight: 600; font-size: 13px; cursor: pointer; transition: background .12s, border-color .12s, color .12s, box-shadow .12s; }
+.dom-tab:hover { border-color: var(--line-strong); background: var(--bg-card); }
+.dom-tab:focus-visible { outline: none; box-shadow: var(--focus-ring); }
 .dom-tab.active { background: var(--sec, var(--accent)); border-color: var(--sec, var(--accent)); color: #fff; }
+.dom-tab.active:hover { background: var(--sec, var(--accent)); }
 .dom-subtabs { display: flex; gap: 8px; margin-bottom: 16px; }
 .kan-sub-box.done { background: var(--accent); border-color: var(--accent); }
 .kan-sub-txt.done { text-decoration: line-through; color: var(--ink-muted); }
@@ -1017,8 +1031,9 @@ mark { background: var(--yellow-bg); color: var(--ink); padding: 0 2px; border-r
 .loan-bar span { display: block; height: 100%; background: var(--accent); border-radius: 4px; }
 .row-between { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; }
 .estat-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; margin-bottom: 22px; }
-.estat { background: var(--bg-card); border: 1px solid var(--line); border-radius: var(--radius-lg); padding: 16px 18px; }
-.estat-val { font-family: var(--serif); font-size: 24px; font-weight: 600; color: var(--ink); letter-spacing: -0.01em; }
+.estat { background: var(--bg-card); border: 1px solid var(--line); border-radius: var(--radius-lg); padding: 16px 18px; transition: box-shadow .14s, transform .14s; }
+.estat:hover { box-shadow: var(--shadow); transform: translateY(-1px); }
+.estat-val { font-family: var(--serif); font-size: 24px; font-weight: 600; color: var(--ink); letter-spacing: -0.01em; line-height: 1.1; }
 .estat-lab { font-size: 12px; color: var(--ink-soft); font-weight: 600; margin-top: 4px; }
 .estat-sub { font-size: 11px; color: var(--ink-muted); margin-top: 4px; }
 .echart { background: var(--bg-card); border: 1px solid var(--line); border-radius: var(--radius-lg); padding: 14px 16px; margin-bottom: 16px; }
@@ -2498,11 +2513,11 @@ function renderTasks(store) {
   const dkey = t => t.dueDate || "9999-12-31";
   cats.forEach(c => byCat[c].sort((a, b) => dkey(a).localeCompare(dkey(b))));
 
-  const cols = cats.map(c => `
-    <div class="kan-col">
-      <div class="kan-col-head">${esc(c)}<span class="kan-count">${byCat[c].length}</span></div>
+  const cols = cats.map(c => { const col = catColor(c); return `
+    <div class="kan-col" style="border-top:3px solid ${col.c}">
+      <div class="kan-col-head" style="color:${col.c}">${esc(c)}<span class="kan-count" style="background:${col.c}">${byCat[c].length}</span></div>
       ${byCat[c].map(t => taskCard(t, list.indexOf(t), store)).join("")}
-    </div>`).join("");
+    </div>`; }).join("");
 
   return head + `<div class="kanban">${cats.length ? cols : `<div class="empty">Žádné aktivní úkoly — přidej nový tlačítkem „+ Nový úkol“.</div>`}</div>`;
 }
@@ -4826,9 +4841,10 @@ function houseBody() {
   });
   const cols = groups.map(g => {
     byG[g].sort((a, b) => (a.dueDate || "9999").localeCompare(b.dueDate || "9999") || (+b.price || 0) - (+a.price || 0));
+    const hcol = catColor(g);
     return `
-      <div class="kan-col">
-        <div class="kan-col-head"><span>${esc(groupLabel(g))}</span><span class="house-room-sum">${fmtCZK(sum(byG[g]))}</span></div>
+      <div class="kan-col" style="border-top:3px solid ${hcol.c}">
+        <div class="kan-col-head" style="color:${hcol.c}"><span>${esc(groupLabel(g))}</span><span class="house-room-sum">${fmtCZK(sum(byG[g]))}</span></div>
         ${byG[g].map(h => houseCard(h, list.indexOf(h))).join("")}
       </div>`;
   }).join("");
@@ -5043,10 +5059,20 @@ function energyTip(evt, el) {
   tip.style.left = x + "px"; tip.style.top = y + "px";
 }
 function hideTip() { const tip = document.getElementById("chartTip"); if (tip) tip.style.display = "none"; }
+function wrapLabel(s, max) {
+  s = String(s == null ? "" : s);
+  if (s.length <= max) return [s];
+  const words = s.split(" "); let l1 = "", l2 = "";
+  for (const w of words) { if (!l1 || (l1 + " " + w).trim().length <= max) l1 = (l1 + " " + w).trim(); else l2 = (l2 + " " + w).trim(); }
+  if (!l2) return [l1.length > max + 4 ? l1.slice(0, max + 3) + "…" : l1];
+  return [l1, l2.length > max + 2 ? l2.slice(0, max + 1) + "…" : l2];
+}
 function svgBars(items, color, opts) {
   opts = opts || {};
   const n = items.length; if (!n) return "";
-  const W = 760, H = 180, padB = 26, padT = 10, padL = 52, padR = 8;
+  const labelLines = items.map(i => wrapLabel(i.label, 9));
+  const maxLines = Math.max(1, ...labelLines.map(l => l.length));
+  const W = 760, padB = 18 + maxLines * 12, padT = 10, padL = 52, padR = 8, H = 150 + padB;
   const vals = items.map(i => i.value);
   const dMax = Math.max(0, ...vals), dMin = Math.min(0, ...vals);
   const plotH = H - padT - padB;
@@ -5058,17 +5084,28 @@ function svgBars(items, color, opts) {
     grid += `<line x1="${padL}" y1="${yy.toFixed(1)}" x2="${W - padR}" y2="${yy.toFixed(1)}" stroke="var(--line)" stroke-width="1"${t === 0 ? '' : ' stroke-dasharray="3 4"'}/>`;
     grid += `<text x="${padL - 8}" y="${(yy + 3).toFixed(1)}" font-size="10" text-anchor="end" fill="var(--ink-muted)">${esc(fmtNum(t, opts.dec == null ? 0 : opts.dec))}</text>`;
   });
-  const slot = (W - padL - padR) / n; const bw = Math.min(34, slot * 0.66);
+  const slot = (W - padL - padR) / n; const bw = Math.min(38, slot * 0.62);
   let bars = "";
   items.forEach((it, i) => {
     const x = padL + i * slot + (slot - bw) / 2;
     const y0 = yOf(0), yv = yOf(it.value);
     const y = Math.min(y0, yv), bh = Math.max(1.5, Math.abs(yv - y0));
-    bars += `<rect x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${bw.toFixed(1)}" height="${bh.toFixed(1)}" rx="3" fill="${it.value < 0 ? 'var(--blue)' : color}" data-tip="${esc(it.tip || (it.label + ': ' + (it.disp != null ? it.disp : it.value)))}" onmousemove="energyTip(event,this)" onmouseleave="hideTip()" style="cursor:pointer"></rect>`;
-    bars += `<text x="${(x + bw / 2).toFixed(1)}" y="${H - 9}" font-size="10" text-anchor="middle" fill="var(--ink-muted)">${esc(it.label)}</text>`;
+    const fill = it.color || (it.value < 0 ? 'var(--blue)' : color);
+    bars += `<rect x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${bw.toFixed(1)}" height="${bh.toFixed(1)}" rx="3" fill="${fill}" data-tip="${esc(it.tip || (it.label + ': ' + (it.disp != null ? it.disp : it.value)))}" onmousemove="energyTip(event,this)" onmouseleave="hideTip()" style="cursor:pointer"></rect>`;
+    const cx = (x + bw / 2).toFixed(1);
+    labelLines[i].forEach((ln, li) => { bars += `<text x="${cx}" y="${(H - padB + 12 + li * 11).toFixed(1)}" font-size="9.5" text-anchor="middle" fill="var(--ink-muted)">${esc(ln)}</text>`; });
   });
   return `<svg viewBox="0 0 ${W} ${H}" style="width:100%;height:auto;display:block">${grid}${bars}</svg>`;
 }
+// Paleta barev pro kategorie — stabilní přiřazení dle názvu
+var CAT_PALETTE = [
+  { c: "var(--green)", bg: "var(--green-bg)" }, { c: "var(--blue)", bg: "var(--blue-bg)" },
+  { c: "var(--purple)", bg: "var(--purple-bg)" }, { c: "var(--teal)", bg: "var(--teal-bg)" },
+  { c: "var(--yellow)", bg: "var(--yellow-bg)" }, { c: "var(--red)", bg: "var(--red-bg)" },
+  { c: "var(--accent)", bg: "#ece1d0" }
+];
+function catHash(s) { s = String(s || ""); let h = 0; for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) >>> 0; return h; }
+function catColor(s) { return CAT_PALETTE[catHash(s) % CAT_PALETTE.length]; }
 function statTile(label, value, sub, accent) {
   return `<div class="estat" style="border-top:3px solid ${accent || 'var(--accent)'}"><div class="estat-val">${value}</div><div class="estat-lab">${esc(label)}</div>${sub ? `<div class="estat-sub">${sub}</div>` : ""}</div>`;
 }
@@ -5410,12 +5447,13 @@ function rozpocetBody() {
   r.forEach((x, i) => { const t = x.type || "Ostatní"; (byType[t] = byType[t] || []).push({ x, i }); });
   const rowsHtml = Object.keys(byType).map(t => {
     const tb = byType[t].reduce((s, o) => s + bKc(o.x), 0), tm = byType[t].reduce((s, o) => s + mKc(o.x), 0);
-    const sub = `<div class="rozp-group"><span>${esc(t)}</span><span>${fmtCZK(tb + tm)}</span></div>`;
-    const items = byType[t].map(({ x, i }) => `<div class="etbl-row e5b rozp-row" onclick="editRozpocet(${i})">
+    const col = catColor(t);
+    const sub = `<div class="rozp-group" style="background:${col.bg};border-left:4px solid ${col.c}"><span style="color:${col.c}">${esc(t)}</span><span style="color:${col.c}">${fmtCZK(tb + tm)}</span></div>`;
+    const items = byType[t].map(({ x, i }) => `<div class="etbl-row e5b rozp-row" style="border-left:4px solid ${col.c}" onclick="editRozpocet(${i})">
         <div class="rozp-item">${esc(x.item)}${x.account ? `<span class="rozp-acc">${esc(x.account)}</span>` : ""}</div>
         <div>${fmtCZK(x.amount)}</div>
-        <div style="color:var(--teal,var(--blue))">${fmtCZK(bKc(x))}</div>
-        <div style="color:var(--purple,var(--accent))">${fmtCZK(mKc(x))}</div>
+        <div style="color:var(--teal)">${fmtCZK(bKc(x))}</div>
+        <div style="color:var(--purple)">${fmtCZK(mKc(x))}</div>
         <div class="e-num" style="color:var(--ink-muted)">${esc(x.fixVar || "")}</div></div>`).join("");
     return sub + items;
   }).join("");
@@ -5594,9 +5632,9 @@ function splitBody() {
   const tot = sumB + sumM || 1;
   const cats = {};
   z.forEach(p => { const c = p.category || "(bez kategorie)"; cats[c] = cats[c] || { b: 0, m: 0 }; cats[c].b += (+p.amountB || 0); cats[c].m += (+p.amountM || 0); });
-  const catRows = Object.keys(cats).sort((a, b) => (cats[b].b + cats[b].m) - (cats[a].b + cats[a].m)).map(c => { const t = cats[c].b + cats[c].m;
-    return `<div class="etbl-row e5" style="cursor:default"><div><b>${esc(c)}</b></div><div style="color:var(--teal,var(--blue))">${fmtCZK(cats[c].b)}</div><div style="color:var(--purple,var(--accent))">${fmtCZK(cats[c].m)}</div><div>${fmtNum(100 * t / tot, 0)} %</div><div class="e-num">${fmtCZK(t)}</div></div>`; }).join("");
-  const catBars = Object.keys(cats).map(c => ({ label: c.length > 8 ? c.slice(0, 8) + "…" : c, value: Math.round(cats[c].b + cats[c].m), tip: `${c} · ${fmtCZK(cats[c].b + cats[c].m)}` }));
+  const catRows = Object.keys(cats).sort((a, b) => (cats[b].b + cats[b].m) - (cats[a].b + cats[a].m)).map(c => { const t = cats[c].b + cats[c].m; const col = catColor(c);
+    return `<div class="etbl-row e5" style="cursor:default;border-left:4px solid ${col.c}"><div><b>${esc(c)}</b></div><div style="color:var(--teal)">${fmtCZK(cats[c].b)}</div><div style="color:var(--purple)">${fmtCZK(cats[c].m)}</div><div>${fmtNum(100 * t / tot, 0)} %</div><div class="e-num">${fmtCZK(t)}</div></div>`; }).join("");
+  const catBars = Object.keys(cats).map(c => ({ label: c, value: Math.round(cats[c].b + cats[c].m), color: catColor(c).c, tip: `${c} · ${fmtCZK(cats[c].b + cats[c].m)}` }));
   const loansHtml = finObj().loans.map((l, li) => {
     const sm = (l.schedule || []).reduce((s, x) => s + (+x.m || 0), 0), sb = (l.schedule || []).reduce((s, x) => s + (+x.b || 0), 0);
     const paid = sm + sb; const n = (l.schedule || []).length; const months = (l.schedule || []).map(x => x.month).filter(Boolean).sort();
@@ -5605,13 +5643,16 @@ function splitBody() {
     const rate = +l.rate || 0;
     const left = loanRemaining(l);
     const pct = princ ? Math.min(100, Math.max(0, 100 * (princ - left) / princ)) : 0;
-    return `<div class="estat" style="border-top:3px solid var(--accent)">
+    const col = catColor(l.name);
+    let nextStr = "";
+    if (+l.nextAmount) { const dt = l.nextDate ? (l.nextDate.slice(8, 10) + "." + l.nextDate.slice(5, 7) + ".") : ""; nextStr = `<div class="estat-sub" style="color:${col.c};font-weight:600">Příští splátka ${fmtCZK(l.nextAmount)}${dt ? " k " + dt : ""}</div>`; }
+    return `<div class="estat" style="border-top:3px solid ${col.c}">
         <div class="estat-val" style="font-size:18px">${esc(l.name || "Úvěr")}</div>
-        ${princ ? `<div class="loan-bar"><span style="width:${pct.toFixed(0)}%"></span></div>
+        ${princ ? `<div class="loan-bar"><span style="width:${pct.toFixed(0)}%;background:${col.c}"></span></div>
         <div class="estat-sub">Jistina ${fmtCZK(princ)} · zbývá <b>${fmtCZK(left)}</b>${rate ? ` · ${fmtNum(rate, 2)} % p.a.` : " · úrok nezadán"}</div>` :
         `<div class="estat-sub" style="margin-top:8px">Zaplaceno <b>${fmtCZK(paid)}</b> (jistina nezadána)</div>`}
         <div class="estat-sub">Zaplaceno ${fmtCZK(paid)} · ${n} splátek · M ${fmtCZK(sm)} · B ${fmtCZK(sb)}</div>
-        <div class="estat-sub">Splátka ${fmtCZK(lastPmt)}${months.length ? " · " + months[0].slice(0, 7) + " – " + months[months.length - 1].slice(0, 7) : ""}</div>
+        ${nextStr || `<div class="estat-sub">Splátka ${fmtCZK(lastPmt)}${months.length ? " · " + months[0].slice(0, 7) + " – " + months[months.length - 1].slice(0, 7) : ""}</div>`}
         <div style="margin-top:8px;display:flex;gap:6px"><button class="btn" style="padding:5px 10px;font-size:12px" onclick="addLoanPayment(${li})">+ Splátka</button><button class="btn" style="padding:5px 10px;font-size:12px" onclick="editLoan(${li})">✎ úprava / úrok</button></div>
       </div>`;
   }).join("");
@@ -5651,17 +5692,19 @@ function loanRemaining(l) {
   sched.forEach(p => { bal = bal * (1 + r) - ((+p.m || 0) + (+p.b || 0)); });
   return Math.max(0, Math.round(bal));
 }
-function addLoan() { openModal("Nový úvěr", [{ key: "name", label: "Název úvěru", value: "" }, { key: "principal", label: "Jistina / výše úvěru (Kč)", value: "" }, { key: "rate", label: "Úrok % p.a.", value: "" }], d => { if (d.name) finObj().loans.push({ name: d.name, principal: evalExpr(d.principal) || loanPrincipal(d.name), rate: evalExpr(d.rate), schedule: [] }); }); }
+function addLoan() { openModal("Nový úvěr", [{ key: "name", label: "Název úvěru", value: "" }, { key: "principal", label: "Zůstatek / výše úvěru (Kč)", value: "" }, { key: "rate", label: "Úrok % p.a.", value: "" }, { key: "nextAmount", label: "Příští splátka (Kč, volitelné)", value: "" }, { key: "nextDate", label: "Datum příští splátky", type: "date", value: "" }], d => { if (d.name) finObj().loans.push({ name: d.name, principal: evalExpr(d.principal) || loanPrincipal(d.name), rate: evalExpr(d.rate), nextAmount: evalExpr(d.nextAmount), nextDate: d.nextDate || "", schedule: [] }); }); }
 function editLoan(li) {
   const l = finObj().loans[li]; if (!l) return;
   openModal("Upravit úvěr", [
     { key: "name", label: "Název", value: l.name || "" },
-    { key: "principal", label: "Jistina / výše úvěru (Kč)", value: String(l.principal || loanPrincipal(l.name) || "") },
+    { key: "principal", label: "Zůstatek / výše úvěru (Kč)", value: String(l.principal || loanPrincipal(l.name) || "") },
     { key: "rate", label: "Úrok % p.a. (zbytek se přepočítá)", value: l.rate != null ? String(l.rate) : "" },
+    { key: "nextAmount", label: "Příští splátka (Kč, volitelné)", value: l.nextAmount != null ? String(l.nextAmount) : "" },
+    { key: "nextDate", label: "Datum příští splátky", type: "date", value: l.nextDate || "" },
     { key: "_del", label: "Smazat celý úvěr? (napiš ANO)", value: "" }
   ], d => {
     if ((d._del || "").trim().toUpperCase() === "ANO") { finObj().loans.splice(li, 1); return; }
-    l.name = d.name || l.name; l.principal = evalExpr(d.principal); l.rate = evalExpr(d.rate);
+    l.name = d.name || l.name; l.principal = evalExpr(d.principal); l.rate = evalExpr(d.rate); l.nextAmount = evalExpr(d.nextAmount); l.nextDate = d.nextDate || "";
   });
 }
 function addLoanPayment(li) {
