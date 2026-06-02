@@ -988,9 +988,42 @@ mark { background: var(--yellow-bg); color: var(--ink); padding: 0 2px; border-r
 .sub-edit-input.done { text-decoration: line-through; color: var(--ink-muted); }
 
 /* DOMÁCNOST */
+.dom-tabs { display: flex; gap: 8px; margin: 4px 0 20px; flex-wrap: wrap; }
+.dom-tab { background: var(--bg-elev); border: 1px solid var(--line); color: var(--ink-soft); padding: 9px 16px; border-radius: 999px; font-family: var(--sans); font-weight: 600; font-size: 13px; cursor: pointer; transition: all .12s; }
+.dom-tab.active { background: var(--sec, var(--accent)); border-color: var(--sec, var(--accent)); color: #fff; }
+.dom-subtabs { display: flex; gap: 8px; margin-bottom: 16px; }
+.kan-sub-box.done { background: var(--accent); border-color: var(--accent); }
+.kan-sub-txt.done { text-decoration: line-through; color: var(--ink-muted); }
+.energy-crumb { font-size: 13px; color: var(--ink-soft); margin-bottom: 12px; }
+.energy-crumb .crumb { cursor: pointer; }
+.energy-crumb .crumb:hover { color: var(--accent); text-decoration: underline; }
+.energy-crumb .crumb.cur { font-weight: 700; color: var(--ink); }
+.etbl-head, .etbl-row { display: grid; gap: 10px; align-items: center; padding: 11px 14px; }
+.etbl-head.e4, .etbl-row.e4 { grid-template-columns: 2fr 1fr 1fr 1.1fr; }
+.etbl-head.e5, .etbl-row.e5 { grid-template-columns: 0.8fr 1fr 1fr 1fr 1.1fr; }
+.etbl-head { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; color: var(--ink-muted); border-bottom: 1px solid var(--line); }
+.etbl-row { background: var(--bg-card); border: 1px solid var(--line); border-radius: var(--radius); margin-bottom: 7px; cursor: pointer; transition: box-shadow .12s; font-variant-numeric: tabular-nums; }
+.etbl-row:hover { box-shadow: var(--shadow); }
+.etbl-row .e-num { text-align: right; font-weight: 700; }
+.etbl-sum { background: var(--bg-elev); cursor: default; font-weight: 700; }
+.etbl-sum:hover { box-shadow: none; }
+.estat-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; margin-bottom: 22px; }
+.estat { background: var(--bg-card); border: 1px solid var(--line); border-radius: var(--radius-lg); padding: 16px 18px; }
+.estat-val { font-family: var(--serif); font-size: 24px; font-weight: 600; color: var(--ink); letter-spacing: -0.01em; }
+.estat-lab { font-size: 12px; color: var(--ink-soft); font-weight: 600; margin-top: 4px; }
+.estat-sub { font-size: 11px; color: var(--ink-muted); margin-top: 4px; }
+.echart { background: var(--bg-card); border: 1px solid var(--line); border-radius: var(--radius-lg); padding: 14px 16px; margin-bottom: 16px; }
+.echart-h { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; color: var(--ink-soft); margin-bottom: 8px; }
+@media (max-width: 700px) {
+  .etbl-head { display: none; }
+  .etbl-row.e4 { grid-template-columns: 1.4fr 1fr 1fr; }
+  .etbl-row.e4 > div:nth-child(3) { display: none; }
+  .etbl-row.e5 { grid-template-columns: 0.6fr 1fr 1fr 1fr; }
+  .etbl-row.e5 > div:nth-child(4) { display: none; }
+}
+
+/* (staré .house-grid použito jen pro Hotové) */
 .house-grid { display: flex; flex-direction: column; gap: 18px; }
-.house-room { background: var(--bg-elev); border: 1px solid var(--line); border-radius: var(--radius-lg); padding: 12px 14px; }
-.house-room-head { display: flex; align-items: center; justify-content: space-between; font-weight: 700; font-size: 13px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--ink-soft); padding: 2px 2px 12px; }
 .house-room-sum { color: var(--accent); font-size: 13px; }
 .house-card-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }
 .house-price { flex: 0 0 auto; font-weight: 700; font-size: 14px; color: var(--ink); white-space: nowrap; }
@@ -1311,7 +1344,7 @@ const SEED = {
   "tasks": [],
   "adminTasks": [],
   "houseWorks": [],
-  "energy": { "settings": { "pricePerM3": 0, "fixedPerYear": 0, "unit": "m³" }, "readings": [] },
+  "energy": { "settings": { "pricePerM3": 0, "priceOld": 0, "priceChangeDate": "", "koef": 1, "fixedPerYear": 0, "unit": "m³" }, "measurements": [] },
   "examinations": [],
   "genetics": {
     "summary": "",
@@ -1553,7 +1586,7 @@ function loadData() {
       if (!DB.exerciseLog) DB.exerciseLog = [];
       if (!DB.adminTasks) DB.adminTasks = [];
       if (!DB.houseWorks) DB.houseWorks = [];
-      if (!DB.energy) DB.energy = { settings: { pricePerM3: 0, fixedPerYear: 0, unit: "m³" }, readings: [] };
+      if (!DB.energy) DB.energy = { settings: { pricePerM3: 0, priceOld: 0, priceChangeDate: "", koef: 1, fixedPerYear: 0, unit: "m³" }, measurements: [] };
       if (!DB.meta) DB.meta = { version: 1 };
       migrateAssignees(DB);
     }
@@ -1568,7 +1601,7 @@ function loadData() {
       if (!remoteData.exerciseLog) remoteData.exerciseLog = [];
       if (!remoteData.adminTasks) remoteData.adminTasks = [];
       if (!remoteData.houseWorks) remoteData.houseWorks = [];
-      if (!remoteData.energy) remoteData.energy = { settings: { pricePerM3: 0, fixedPerYear: 0, unit: "m³" }, readings: [] };
+      if (!remoteData.energy) remoteData.energy = { settings: { pricePerM3: 0, priceOld: 0, priceChangeDate: "", koef: 1, fixedPerYear: 0, unit: "m³" }, measurements: [] };
       if (!remoteData.meta) remoteData.meta = { version: 1 };
       migrateAssignees(remoteData);
       // Update DB jen pokud se opravdu změnilo (jinak by uložení vlastních dat smyklo render)
@@ -2195,7 +2228,10 @@ function maybeDailySnapshot() {
   if (!Array.isArray(snapshots)) snapshots = [];
   const today = new Date().toISOString().slice(0, 10);
   if (snapshots.some(s => s.date === today)) return; // dnešní snímek už existuje
-  snapshots.push({ date: today, ts: Date.now(), data: JSON.parse(JSON.stringify(DB)) });
+  // objemná historická data energií do snímku nedáváme (kvůli limitu velikosti); obnova přes Import
+  const slim = JSON.parse(JSON.stringify(DB));
+  if (slim.energy) slim.energy.measurements = [];
+  snapshots.push({ date: today, ts: Date.now(), data: slim });
   if (snapshots.length > 7) snapshots = snapshots.slice(-7); // drž posledních 7 dní
   save();
 }
@@ -4641,27 +4677,38 @@ function renderTasksModule() {
 }
 
 // ============================================================
-// MODUL DOMÁCNOST — Dům (práce + ceny) a Energie (odečty)
+// MODUL DOMÁCNOST — Dům (realizace + ceny) a Energie (měření)
 // ============================================================
 
-let domacnostTab = "house"; // 'house' | 'energy'
-let houseView = "active";   // 'active' | 'done'
+let domacnostTab = "house";   // 'house' | 'energy'
+let houseView = "active";     // 'active' | 'done'
+let energyTab = "data";       // 'data' | 'dash'
+let energyYear = null;        // null = přehled let
+let energyMonth = null;       // null = přehled měsíců (0-11)
+
+const MONTHS_CZ = ["leden", "únor", "březen", "duben", "květen", "červen", "červenec", "srpen", "září", "říjen", "listopad", "prosinec"];
+const MONTHS_SH = ["led", "úno", "bře", "dub", "kvě", "čvn", "čvc", "srp", "zář", "říj", "lis", "pro"];
 
 function houseList() { if (!DB.houseWorks) DB.houseWorks = []; return DB.houseWorks; }
 function energyObj() {
-  if (!DB.energy) DB.energy = { settings: { pricePerM3: 0, fixedPerYear: 0, unit: "m³" }, readings: [] };
-  if (!DB.energy.settings) DB.energy.settings = { pricePerM3: 0, fixedPerYear: 0, unit: "m³" };
-  if (!DB.energy.readings) DB.energy.readings = [];
+  if (!DB.energy) DB.energy = {};
+  if (!DB.energy.settings) DB.energy.settings = { pricePerM3: 0, priceOld: 0, priceChangeDate: "", koef: 1, fixedPerYear: 0, unit: "m³" };
+  if (!Array.isArray(DB.energy.measurements)) DB.energy.measurements = [];
   return DB.energy;
 }
-function fmtCZK(n) {
-  n = Math.round(+n || 0);
-  const s = String(Math.abs(n)).replace(/\B(?=(\d{3})+(?!\d))/g, " ");
-  return (n < 0 ? "-" : "") + s + " Kč";
+function fmtCZK(n) { n = Math.round(+n || 0); const s = String(Math.abs(n)).replace(/\B(?=(\d{3})+(?!\d))/g, " "); return (n < 0 ? "-" : "") + s + " Kč"; }
+function fmtNum(n, dec) { if (n == null || n === "") return "–"; const x = (+n).toFixed(dec == null ? 1 : dec); return x.replace(".", ",").replace(/\B(?=(\d{3})+(?!\d)\,)/g, " "); }
+
+// Skupina místnosti = patro/zóna (z prefixu "00 - …" → "00")
+function roomGroup(room) {
+  room = (room || "").trim();
+  const m = room.match(/^(\d{1,2})\s*-/);
+  if (m) return m[1];
+  return room || "(ostatní)";
 }
-function fmtNum(n, dec) {
-  const x = (+n || 0).toFixed(dec == null ? 1 : dec);
-  return x.replace(".", ",").replace(/\B(?=(\d{3})+(?!\d)\,)/g, " ");
+function groupLabel(g) {
+  if (/^\d+$/.test(g)) return "Podlaží " + g;
+  return g;
 }
 
 function renderDomacnostModule() {
@@ -4673,62 +4720,73 @@ function renderDomacnostModule() {
 }
 
 function renderDomacnost() {
+  const isE = domacnostTab === "energy";
+  const header = isE ? energyHeader() : houseHeader();
   const tabs = `
-    <div class="filters" style="margin-bottom:18px">
-      <button class="filter-btn ${domacnostTab === 'house' ? 'active' : ''}" onclick="domacnostTab='house'; renderAll()">🛠 Dům · práce a ceny</button>
-      <button class="filter-btn ${domacnostTab === 'energy' ? 'active' : ''}" onclick="domacnostTab='energy'; renderAll()">⚡ Energie · odečty</button>
+    <div class="dom-tabs">
+      <button class="dom-tab ${!isE ? 'active' : ''}" onclick="domacnostTab='house'; renderAll()">🛠 Dům — realizace a ceny</button>
+      <button class="dom-tab ${isE ? 'active' : ''}" onclick="domacnostTab='energy'; renderAll()">⚡ Energie — měření</button>
     </div>`;
-  return tabs + (domacnostTab === "energy" ? renderEnergy() : renderHouseWorks());
+  const body = isE ? energyBody() : houseBody();
+  return header + tabs + body;
 }
 
-// ---- DŮM ----
-function renderHouseWorks() {
+// ---------- DŮM ----------
+function houseHeader() {
+  const list = houseList();
+  const isDone = h => h.done || h.status === "Hotovo";
+  const active = list.filter(h => !isDone(h));
+  const sum = arr => arr.reduce((s, h) => s + (+h.price || 0), 0);
+  return `
+    <div class="page-header">
+      <div>
+        <div class="page-title">Dům — realizace a ceny</div>
+        <div class="page-subtitle">${active.length} aktivních · odhad zbývá <b>${fmtCZK(sum(active))}</b> · celkem ${fmtCZK(sum(list))}</div>
+      </div>
+      <div class="page-actions">
+        <button class="btn" onclick="importDomacnostFromJson()">↥ Import (JSON)</button>
+        <button class="btn primary" onclick="addHouseWork()">+ Nová realizace</button>
+      </div>
+    </div>`;
+}
+function houseBody() {
   const list = houseList();
   const isDone = h => h.done || h.status === "Hotovo";
   const active = list.filter(h => !isDone(h));
   const done = list.filter(isDone);
   const sum = arr => arr.reduce((s, h) => s + (+h.price || 0), 0);
-
-  const head = `
-    <div class="page-header">
-      <div>
-        <div class="page-title">Dům — práce a ceny</div>
-        <div class="page-subtitle">${active.length} aktivních · odhad zbývá <b>${fmtCZK(sum(active))}</b> · celkem ${fmtCZK(sum(list))}</div>
-      </div>
-      <div class="page-actions">
-        <button class="btn" onclick="importDomacnostFromJson()">↥ Import (JSON)</button>
-        <button class="btn primary" onclick="addHouseWork()">+ Nová práce</button>
-      </div>
-    </div>
+  const toggle = `
     <div class="filters">
       <button class="filter-btn ${houseView === 'active' ? 'active' : ''}" onclick="houseView='active'; renderAll()">Aktivní</button>
       <button class="filter-btn ${houseView === 'done' ? 'active' : ''}" onclick="houseView='done'; renderAll()">Hotové · ${done.length}</button>
     </div>`;
-
   if (houseView === "done") {
-    return head + `<div class="list-wrap">${done.length ? done.map(h => houseRowDone(h, list.indexOf(h))).join("") : `<div class="empty">Žádné hotové práce</div>`}</div>`;
+    return toggle + `<div class="list-wrap">${done.length ? done.map(h => houseRowDone(h, list.indexOf(h))).join("") : `<div class="empty">Žádné hotové realizace</div>`}</div>`;
   }
-
-  // skupiny dle místnosti, seřazené dle ceny (sestupně) uvnitř
-  const byRoom = {};
-  active.forEach(h => { const r = h.room || "(bez místnosti)"; (byRoom[r] = byRoom[r] || []).push(h); });
-  const rooms = Object.keys(byRoom).sort((a, b) => sum(byRoom[b]) - sum(byRoom[a]));
-  const sections = rooms.map(r => {
-    byRoom[r].sort((a, b) => (+b.price || 0) - (+a.price || 0));
+  // kanban po skupinách (patrech/zónách)
+  const byG = {};
+  active.forEach(h => { const g = roomGroup(h.room); (byG[g] = byG[g] || []).push(h); });
+  const groups = Object.keys(byG).sort((a, b) => {
+    const na = /^\d+$/.test(a), nb = /^\d+$/.test(b);
+    if (na && nb) return (+a) - (+b);
+    if (na) return -1; if (nb) return 1;
+    return a.localeCompare(b, "cs");
+  });
+  const cols = groups.map(g => {
+    byG[g].sort((a, b) => (a.dueDate || "9999").localeCompare(b.dueDate || "9999") || (+b.price || 0) - (+a.price || 0));
     return `
-      <div class="house-room">
-        <div class="house-room-head"><span>${esc(r)}</span><span class="house-room-sum">${fmtCZK(sum(byRoom[r]))}</span></div>
-        ${byRoom[r].map(h => houseCard(h, list.indexOf(h))).join("")}
+      <div class="kan-col">
+        <div class="kan-col-head"><span>${esc(groupLabel(g))}</span><span class="house-room-sum">${fmtCZK(sum(byG[g]))}</span></div>
+        ${byG[g].map(h => houseCard(h, list.indexOf(h))).join("")}
       </div>`;
   }).join("");
-
-  return head + `<div class="house-grid">${rooms.length ? sections : `<div class="empty">Zatím žádné práce — přidej tlačítkem „+ Nová práce“.</div>`}</div>`;
+  return toggle + `<div class="kanban">${groups.length ? cols : `<div class="empty">Zatím žádné realizace — přidej „+ Nová realizace“.</div>`}</div>`;
 }
-
 function houseCard(h, idx) {
   const subs = h.subtasks || [];
-  const open = subs.filter(s => !s.done);
+  const doneN = subs.filter(s => s.done).length;
   const pr = { "Vysoká": "red", "Střední": "yellow", "Nízká": "blue" }[h.priority] || "neutral";
+  const SHOWN = 6;
   return `
     <div class="kan-card" onclick="editHouseWork(${idx})">
       <div class="kan-check ${h.done ? 'done' : ''}" onclick="event.stopPropagation();toggleHouseWork(${idx})"></div>
@@ -4737,153 +4795,293 @@ function houseCard(h, idx) {
           <div class="kan-title">${esc(h.title || '(bez názvu)')}</div>
           <div class="house-price">${(+h.price) ? fmtCZK(h.price) : ''}</div>
         </div>
-        ${subs.length ? `<div class="kan-subs">${open.slice(0, 4).map(s => { const si = subs.indexOf(s); return `<div class="kan-sub" onclick="event.stopPropagation();toggleHouseSubtask(${idx},${si})"><span class="kan-sub-box"></span><span class="kan-sub-txt">${esc(s.text)}</span></div>`; }).join("")}${open.length > 4 ? `<div class="kan-sub-more">+ ${open.length - 4} dalších…</div>` : ""}</div>`
-          : (h.note ? `<div class="kan-note">${esc(h.note)}</div>` : "")}
+        ${subs.length ? `<div class="kan-subs">${subs.slice(0, SHOWN).map(s => { const si = subs.indexOf(s); return `<div class="kan-sub" onclick="event.stopPropagation();toggleHouseSubtask(${idx},${si})"><span class="kan-sub-box ${s.done ? 'done' : ''}"></span><span class="kan-sub-txt ${s.done ? 'done' : ''}">${esc(s.text)}</span></div>`; }).join("")}${subs.length > SHOWN ? `<div class="kan-sub-more">+ ${subs.length - SHOWN} dalších…</div>` : ""}</div>`
+      : (h.note ? `<div class="kan-note">${esc(h.note)}</div>` : "")}
         <div class="kan-meta">
-          <span class="tag neutral">${esc(h.type || 'Realizace')}</span>
+          ${h.room ? `<span class="tag neutral">${esc(h.room)}</span>` : ''}
           <span class="tag ${pr}">${esc(h.priority || 'Střední')}</span>
-          ${subs.length ? `<span class="kan-prog">${subs.length - open.length}/${subs.length}</span>` : ''}
+          ${h.dueDate ? `<span class="kan-date">📆 ${esc(fmtDateShort(h.dueDate))}</span>` : ''}
+          ${subs.length ? `<span class="kan-prog">${doneN}/${subs.length}</span>` : ''}
         </div>
       </div>
     </div>`;
 }
-
 function houseRowDone(h, idx) {
   return `
     <div class="item-row">
-      <div class="item-body">
-        <div class="item-title done">${esc(h.title || '')}</div>
-        <div class="item-meta">${h.room ? `<span class="tag neutral">${esc(h.room)}</span>` : ''}${(+h.price) ? `<span style="color:var(--ink-muted)">${fmtCZK(h.price)}</span>` : ''}</div>
-      </div>
+      <div class="item-body"><div class="item-title done">${esc(h.title || '')}</div>
+        <div class="item-meta">${h.room ? `<span class="tag neutral">${esc(h.room)}</span>` : ''}${(+h.price) ? `<span style="color:var(--ink-muted)">${fmtCZK(h.price)}</span>` : ''}</div></div>
       <div class="row-actions" style="opacity:1">
         <button class="btn" onclick="toggleHouseWork(${idx})">↩ Obnovit</button>
         <button class="icon-btn" onclick="deleteHouseWork(${idx})" title="Smazat">✕</button>
       </div>
     </div>`;
 }
-
-function houseFormFields(h) {
+function houseFormFields(h, isEdit) {
   h = h || {};
   const rooms = [...new Set(houseList().map(x => x.room).filter(Boolean))].sort();
-  return [
-    { key: "title", label: "Práce / co", value: h.title || "" },
+  const f = [
+    { key: "title", label: "Realizace / co", value: h.title || "" },
     { key: "room", label: "Místnost (vyber nebo napiš)", type: "datalist", options: rooms, value: h.room || "", placeholder: "např. 00 - Hala, Zahrada…" },
     { key: "type", label: "Typ", type: "select", options: ["Realizace", "Údržba", "Vybavení", "Jiné"], value: h.type || "Realizace" },
     { key: "priority", label: "Priorita", type: "select", options: ["Vysoká", "Střední", "Nízká"], value: h.priority || "Střední" },
+    { key: "dueDate", label: "Termín / plán realizace (z kalendáře)", type: "date", value: h.dueDate || "" },
     { key: "price", label: "Odhad ceny (Kč)", value: (h.price != null ? String(h.price) : "") },
     { key: "status", label: "Stav", type: "select", options: ["Plán", "Probíhá", "Hotovo"], value: h.status || "Plán" },
     { key: "note", label: "Poznámka (volitelné)", type: "textarea", value: h.note || "" },
     { key: "subtasks", label: "Položky", type: "subtasks", value: h.subtasks || [] }
   ];
+  if (isEdit) f.push({ key: "moveTo", label: "Přesun do jiného modulu", type: "select", options: ["(nechat v Domácnosti)", "Kopírovat do Úkolů", "Přesunout do Úkolů"], value: "(nechat v Domácnosti)" });
+  return f;
 }
 function applyHouseForm(h, data) {
   const subtasks = data.subtasks || h.subtasks || [];
   const price = parseInt(String(data.price).replace(/[^\d-]/g, ""), 10) || 0;
   const done = data.status === "Hotovo";
-  delete data.subtasks;
+  delete data.subtasks; delete data.moveTo;
   return { ...h, ...data, price, subtasks, done };
 }
+function houseToTask(h) {
+  return {
+    title: h.title || "", category: "Dům", priority: h.priority || "Střední",
+    deadline: "", dueDate: h.dueDate || "", assignee: "", repeat: null,
+    status: "Otevřeno", contact: h.note || "",
+    subtasks: (h.subtasks || []).map(s => ({ text: s.text || "", done: !!s.done })),
+    done: false, completedDate: ""
+  };
+}
 function addHouseWork() {
-  openModal("Nová práce", houseFormFields({}), data => houseList().unshift(applyHouseForm({}, data)));
+  openModal("Nová realizace", houseFormFields({}, false), data => houseList().unshift(applyHouseForm({}, data)));
 }
 function editHouseWork(i) {
   const h = houseList()[i];
-  openModal("Upravit práci", houseFormFields(h), data => { houseList()[i] = applyHouseForm(h, data); });
+  openModal("Upravit realizaci", houseFormFields(h, true), data => {
+    const action = data.moveTo;
+    const upd = applyHouseForm(h, data);
+    const toTasks = action && action.indexOf("Úkol") >= 0;
+    if (toTasks) { if (!DB.adminTasks) DB.adminTasks = []; DB.adminTasks.unshift(houseToTask(upd)); }
+    if (action === "Přesunout do Úkolů") houseList().splice(i, 1);
+    else houseList()[i] = upd;
+    if (toTasks) setTimeout(() => alert((action === "Přesunout do Úkolů" ? "Přesunuto" : "Zkopírováno") + " do modulu Úkoly."), 60);
+  });
 }
-function deleteHouseWork(i) {
-  if (confirm("Smazat „" + (houseList()[i].title || "práci") + "“?")) { houseList().splice(i, 1); save(); renderAll(); }
+function deleteHouseWork(i) { if (confirm("Smazat „" + (houseList()[i].title || "realizaci") + "“?")) { houseList().splice(i, 1); save(); renderAll(); } }
+function toggleHouseWork(i) { const h = houseList()[i]; h.done = !h.done; h.status = h.done ? "Hotovo" : "Plán"; save(); renderAll(); }
+function toggleHouseSubtask(i, si) { const h = houseList()[i]; if (h && h.subtasks && h.subtasks[si]) { h.subtasks[si].done = !h.subtasks[si].done; save(); renderAll(); } }
+
+// ---------- ENERGIE ----------
+function energyPriceFor(dateStr, s) {
+  if (s.priceChangeDate && dateStr >= s.priceChangeDate) return +s.pricePerM3 || 0;
+  return (+s.priceOld || +s.pricePerM3 || 0);
 }
-function toggleHouseWork(i) {
-  const h = houseList()[i];
-  h.done = !h.done;
-  h.status = h.done ? "Hotovo" : "Plán";
-  save(); renderAll();
+// Denní záznam s dopočtem: total m³, náklad (spotřeba × cena × koef + stálý plat/den)
+function energyDaily(m, s) {
+  const heat = +m.heat || 0, water = +m.water || 0, total = heat + water;
+  const price = energyPriceFor(m.date, s);
+  const koef = +s.koef || 1;
+  const cons = total * price * koef;
+  const standing = (+s.fixedPerYear || 0) / 365;
+  return { date: m.date, heat, water, total, temp: (m.temp == null ? null : +m.temp), price, cons, standing, cost: cons + standing };
 }
-function toggleHouseSubtask(i, si) {
-  const h = houseList()[i];
-  if (h && h.subtasks && h.subtasks[si]) { h.subtasks[si].done = !h.subtasks[si].done; save(); renderAll(); }
+function energyRows() {
+  const e = energyObj(), s = e.settings;
+  return e.measurements.map(m => energyDaily(m, s)).sort((a, b) => a.date.localeCompare(b.date));
+}
+function energyYears(rows) { return [...new Set(rows.map(r => +r.date.slice(0, 4)))].sort((a, b) => a - b); }
+function aggr(rows) {
+  const temps = rows.map(r => r.temp).filter(t => t != null);
+  return {
+    days: rows.length,
+    heat: rows.reduce((s, r) => s + r.heat, 0),
+    water: rows.reduce((s, r) => s + r.water, 0),
+    total: rows.reduce((s, r) => s + r.total, 0),
+    cost: rows.reduce((s, r) => s + r.cost, 0),
+    cons: rows.reduce((s, r) => s + r.cons, 0),
+    standing: rows.reduce((s, r) => s + r.standing, 0),
+    tAvg: temps.length ? temps.reduce((a, b) => a + b, 0) / temps.length : null,
+    tMin: temps.length ? Math.min(...temps) : null,
+    tMax: temps.length ? Math.max(...temps) : null
+  };
 }
 
-// ---- ENERGIE ----
-function renderEnergy() {
-  const e = energyObj();
-  const s = e.settings || {};
-  const unit = s.unit || "m³";
-  const rd = [...e.readings].sort((a, b) => String(a.date).localeCompare(String(b.date)));
-  // spočítej rozdíly mezi po sobě jdoucími odečty
-  let rowsHtml = "";
-  for (let i = rd.length - 1; i >= 0; i--) {
-    const r = rd[i], prev = rd[i - 1];
-    let dM = "", dCzk = "", days = "";
-    if (prev) {
-      const d = (+r.value) - (+prev.value);
-      dM = fmtNum(d) + " " + unit;
-      dCzk = fmtCZK(d * (+s.pricePerM3 || 0));
-      const da = parseDateIso(r.date), db = parseDateIso(prev.date);
-      if (da && db) days = Math.round((da - db) / 86400000) + " dní";
-    }
-    rowsHtml += `
-      <div class="energy-row" onclick="editReading(${e.readings.indexOf(r)})">
-        <div class="energy-date">${esc(r.date)}</div>
-        <div class="energy-val">${fmtNum(r.value)} ${esc(unit)}</div>
-        <div class="energy-delta">${dM ? `+${dM}${days ? ` · ${days}` : ""}` : "<span style='color:var(--ink-muted)'>počáteční</span>"}</div>
-        <div class="energy-cost">${dCzk}</div>
-      </div>`;
-  }
+function energyHeader() {
+  const e = energyObj(), s = e.settings, rows = energyRows();
+  const range = rows.length ? `${rows[0].date} – ${rows[rows.length - 1].date}` : "zatím prázdné";
   return `
     <div class="page-header">
       <div>
-        <div class="page-title">Energie — odečty</div>
-        <div class="page-subtitle">${rd.length} odečtů · cena ${fmtNum(s.pricePerM3, 2)} Kč/${esc(unit)}${(+s.fixedPerYear) ? ` · stálý plat ${fmtCZK(s.fixedPerYear)}/rok` : ""}</div>
+        <div class="page-title">Energie — měření</div>
+        <div class="page-subtitle">${rows.length} dní · ${esc(range)} · cena ${fmtNum(s.pricePerM3, 2)} Kč/${esc(s.unit || "m³")}${(+s.fixedPerYear) ? ` · stálý plat ${fmtCZK(s.fixedPerYear)}/rok` : ""}</div>
       </div>
       <div class="page-actions">
         <button class="btn" onclick="editEnergySettings()">⚙ Ceník</button>
-        <button class="btn primary" onclick="addReading()">+ Nový odečet</button>
+        <button class="btn" onclick="importDomacnostFromJson()">↥ Import (JSON)</button>
+        <button class="btn primary" onclick="addEnergyMeasurement()">+ Měření</button>
       </div>
-    </div>
-    <p style="color:var(--ink-soft);font-size:13px;line-height:1.6;margin-bottom:14px">
-      Zapiš stav měřáku k datu. Spotřebu i náklad mezi odečty (rozdíl × cena za ${esc(unit)}) dopočítá appka sama.
-    </p>
-    <div class="energy-head">
-      <div>Datum</div><div>Stav</div><div>Spotřeba od minula</div><div>Náklad</div>
-    </div>
-    <div class="list-wrap">
-      ${rd.length ? rowsHtml : `<div class="empty">Zatím žádné odečty — přidej „+ Nový odečet“.</div>`}
     </div>`;
 }
-function addReading() {
-  openModal("Nový odečet", [
+function energyBody() {
+  const sub = `
+    <div class="dom-subtabs">
+      <button class="filter-btn ${energyTab === 'data' ? 'active' : ''}" onclick="energyTab='data'; renderAll()">📋 Data</button>
+      <button class="filter-btn ${energyTab === 'dash' ? 'active' : ''}" onclick="energyTab='dash'; renderAll()">📊 Přehled</button>
+    </div>`;
+  return sub + (energyTab === "dash" ? energyDashboard() : energyDataTab());
+}
+
+// --- DATA: drill-down rok → měsíc → den ---
+function energyCrumb() {
+  let c = `<span class="crumb ${energyYear == null ? 'cur' : ''}" onclick="energyYear=null;energyMonth=null;renderAll()">Všechny roky</span>`;
+  if (energyYear != null) c += ` ▸ <span class="crumb ${energyMonth == null ? 'cur' : ''}" onclick="energyMonth=null;renderAll()">${energyYear}</span>`;
+  if (energyMonth != null) c += ` ▸ <span class="crumb cur">${MONTHS_CZ[energyMonth]}</span>`;
+  return `<div class="energy-crumb">${c}</div>`;
+}
+function energyDataTab() {
+  const rows = energyRows();
+  if (!rows.length) return energyCrumb() + `<div class="empty">Zatím žádná měření — přidej „+ Měření“ nebo naimportuj JSON.</div>`;
+  if (energyYear == null) {
+    const years = energyYears(rows);
+    const head = `<div class="etbl-head e4"><div>Rok</div><div>Teplo</div><div>Voda</div><div>Náklad</div></div>`;
+    const body = years.map(y => {
+      const a = aggr(rows.filter(r => +r.date.slice(0, 4) === y));
+      return `<div class="etbl-row e4" onclick="energyYear=${y};energyMonth=null;renderAll()">
+        <div><b>${y}</b> <span style="color:var(--ink-muted);font-size:12px">· ${a.days} dní · ⌀ ${fmtNum(a.tAvg)} °C</span></div>
+        <div>${fmtNum(a.heat)} m³</div><div>${fmtNum(a.water)} m³</div><div class="e-num">${fmtCZK(a.cost)}</div></div>`;
+    }).join("");
+    return energyCrumb() + head + `<div class="list-wrap">${body}</div>`;
+  }
+  if (energyMonth == null) {
+    const head = `<div class="etbl-head e4"><div>Měsíc</div><div>Teplo</div><div>Voda</div><div>Náklad</div></div>`;
+    let body = "";
+    for (let m = 0; m < 12; m++) {
+      const mr = rows.filter(r => +r.date.slice(0, 4) === energyYear && (+r.date.slice(5, 7) - 1) === m);
+      if (!mr.length) continue;
+      const a = aggr(mr);
+      body += `<div class="etbl-row e4" onclick="energyMonth=${m};renderAll()">
+        <div><b>${MONTHS_CZ[m]}</b> <span style="color:var(--ink-muted);font-size:12px">· ${a.days} dní · ⌀ ${fmtNum(a.tAvg)} °C</span></div>
+        <div>${fmtNum(a.heat)} m³</div><div>${fmtNum(a.water)} m³</div><div class="e-num">${fmtCZK(a.cost)}</div></div>`;
+    }
+    return energyCrumb() + head + `<div class="list-wrap">${body}</div>`;
+  }
+  // dny
+  const dr = rows.filter(r => +r.date.slice(0, 4) === energyYear && (+r.date.slice(5, 7) - 1) === energyMonth);
+  const head = `<div class="etbl-head e5"><div>Den</div><div>Teplo</div><div>Voda</div><div>Teplota</div><div>Náklad</div></div>`;
+  const body = dr.map(r => {
+    const mi = energyObj().measurements.findIndex(x => x.date === r.date);
+    return `<div class="etbl-row e5" onclick="editEnergyMeasurement(${mi})">
+      <div><b>${(+r.date.slice(8, 10))}.</b></div>
+      <div>${fmtNum(r.heat)}</div><div>${fmtNum(r.water)}</div>
+      <div>${r.temp == null ? "–" : fmtNum(r.temp) + " °C"}</div>
+      <div class="e-num">${fmtCZK(r.cost)}</div></div>`;
+  }).join("");
+  const a = aggr(dr);
+  const sumRow = `<div class="etbl-row e5 etbl-sum"><div>Σ ${MONTHS_CZ[energyMonth]}</div><div>${fmtNum(a.heat)}</div><div>${fmtNum(a.water)}</div><div>⌀ ${fmtNum(a.tAvg)}</div><div class="e-num">${fmtCZK(a.cost)}</div></div>`;
+  return energyCrumb() + head + `<div class="list-wrap">${body}${sumRow}</div>`;
+}
+
+// --- PŘEHLED: dashboard ---
+function svgBars(items, color, opts) {
+  opts = opts || {};
+  const n = items.length; if (!n) return "";
+  const W = 760, H = 150, padB = 22, padT = 8, padL = 4;
+  const max = Math.max(1e-9, ...items.map(i => Math.abs(i.value)));
+  const hasNeg = items.some(i => i.value < 0);
+  const base = hasNeg ? (padT + (H - padT - padB) / 2) : (H - padB);
+  const avail = hasNeg ? (H - padT - padB) / 2 : (H - padT - padB);
+  const slot = (W - padL * 2) / n;
+  const bw = Math.min(34, slot * 0.7);
+  let out = "";
+  if (hasNeg) out += `<line x1="${padL}" y1="${base}" x2="${W - padL}" y2="${base}" stroke="var(--line)" stroke-width="1"/>`;
+  items.forEach((it, i) => {
+    const x = padL + i * slot + (slot - bw) / 2;
+    const bh = (Math.abs(it.value) / max) * avail;
+    const y = it.value < 0 ? base : base - bh;
+    out += `<rect x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${bw.toFixed(1)}" height="${Math.max(1, bh).toFixed(1)}" rx="3" fill="${it.value < 0 ? 'var(--blue)' : color}"><title>${esc(it.label)}: ${esc(it.disp != null ? it.disp : it.value)}</title></rect>`;
+    out += `<text x="${(x + bw / 2).toFixed(1)}" y="${H - 7}" font-size="9" text-anchor="middle" fill="var(--ink-muted)">${esc(it.label)}</text>`;
+  });
+  return `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" style="width:100%;height:150px">${out}</svg>`;
+}
+function statTile(label, value, sub, accent) {
+  return `<div class="estat" style="border-top:3px solid ${accent || 'var(--accent)'}"><div class="estat-val">${value}</div><div class="estat-lab">${esc(label)}</div>${sub ? `<div class="estat-sub">${sub}</div>` : ""}</div>`;
+}
+function energyDashboard() {
+  const rows = energyRows();
+  if (!rows.length) return `<div class="empty">Zatím žádná měření.</div>`;
+  const years = energyYears(rows);
+  const y = (energyYear != null && years.includes(energyYear)) ? energyYear : years[years.length - 1];
+  const yrRows = rows.filter(r => +r.date.slice(0, 4) === y);
+  const a = aggr(yrRows);
+  // měsíční agregace
+  const months = [];
+  for (let m = 0; m < 12; m++) {
+    const mr = yrRows.filter(r => (+r.date.slice(5, 7) - 1) === m);
+    months.push({ m, a: aggr(mr), has: mr.length > 0 });
+  }
+  const consBars = months.filter(x => x.has).map(x => ({ label: MONTHS_SH[x.m], value: +x.a.total.toFixed(1), disp: fmtNum(x.a.total) + " m³" }));
+  const costBars = months.filter(x => x.has).map(x => ({ label: MONTHS_SH[x.m], value: Math.round(x.a.cost), disp: fmtCZK(x.a.cost) }));
+  const tempBars = months.filter(x => x.has).map(x => ({ label: MONTHS_SH[x.m], value: x.a.tAvg == null ? 0 : +x.a.tAvg.toFixed(1), disp: fmtNum(x.a.tAvg) + " °C" }));
+  // korelace teplo vs teplota (čím chladněji, tím víc tepla)
+  const pts = yrRows.filter(r => r.temp != null);
+  let corr = null;
+  if (pts.length > 10) {
+    const xs = pts.map(p => p.temp), ys = pts.map(p => p.heat);
+    const mx = xs.reduce((a, b) => a + b, 0) / xs.length, my = ys.reduce((a, b) => a + b, 0) / ys.length;
+    let num = 0, dx = 0, dy = 0;
+    for (let i = 0; i < xs.length; i++) { num += (xs[i] - mx) * (ys[i] - my); dx += (xs[i] - mx) ** 2; dy += (ys[i] - my) ** 2; }
+    corr = (dx && dy) ? num / Math.sqrt(dx * dy) : null;
+  }
+  const yearBtns = years.map(yy => `<button class="filter-btn ${yy === y ? 'active' : ''}" onclick="energyYear=${yy};renderAll()">${yy}</button>`).join("");
+  return `
+    <div class="filters" style="margin-bottom:16px"><span style="font-size:11px;color:var(--ink-muted);align-self:center;margin-right:4px;font-weight:600;text-transform:uppercase;letter-spacing:.06em">Rok:</span>${yearBtns}</div>
+    <div class="estat-grid">
+      ${statTile("Spotřeba " + y, fmtNum(a.total) + " m³", `teplo ${fmtNum(a.heat)} · voda ${fmtNum(a.water)}`, "var(--accent)")}
+      ${statTile("Náklad " + y, fmtCZK(a.cost), `spotřeba ${fmtCZK(a.cons)} + stálé ${fmtCZK(a.standing)}`, "var(--green)")}
+      ${statTile("Průměrná teplota", fmtNum(a.tAvg) + " °C", `min ${fmtNum(a.tMin)} · max ${fmtNum(a.tMax)} °C`, "var(--blue)")}
+      ${statTile("Dní s měřením", a.days + "", `⌀ spotřeba ${fmtNum(a.total / (a.days || 1), 2)} m³/den`, "var(--yellow)")}
+    </div>
+    <div class="echart"><div class="echart-h">Spotřeba po měsících (m³)</div>${svgBars(consBars, "var(--accent)")}</div>
+    <div class="echart"><div class="echart-h">Náklad po měsících (Kč)</div>${svgBars(costBars, "var(--green)")}</div>
+    <div class="echart"><div class="echart-h">Průměrná venkovní teplota (°C) — modrá = pod nulou</div>${svgBars(tempBars, "var(--red)")}</div>
+    ${corr != null ? `<p style="color:var(--ink-soft);font-size:13px;line-height:1.6;margin-top:8px">Souvislost teplo × venkovní teplota: korelace <b>${fmtNum(corr, 2)}</b> — ${corr < -0.4 ? "jasně platí „čím chladněji, tím víc tepla“." : corr < -0.1 ? "mírný vztah (chladněji → víc tepla)." : "slabá souvislost."}</p>` : ""}`;
+}
+
+function addEnergyMeasurement() {
+  openModal("Nové měření", [
     { key: "date", label: "Datum", type: "date", value: new Date().toISOString().slice(0, 10) },
-    { key: "value", label: "Stav měřáku", value: "" },
-    { key: "note", label: "Poznámka (volitelné)", value: "" }
+    { key: "heat", label: "Teplo (m³)", value: "" },
+    { key: "water", label: "Voda (m³)", value: "" },
+    { key: "temp", label: "Venkovní teplota (°C)", value: "" }
   ], data => {
-    energyObj().readings.push({ date: data.date, value: parseFloat(String(data.value).replace(",", ".").replace(/[^\d.-]/g, "")) || 0, note: data.note || "" });
+    const num = v => v === "" ? null : (parseFloat(String(v).replace(",", ".")) || 0);
+    energyObj().measurements.push({ date: data.date, heat: num(data.heat) || 0, water: num(data.water) || 0, temp: data.temp === "" ? null : num(data.temp) });
   });
 }
-function editReading(i) {
-  const r = energyObj().readings[i];
-  openModal("Upravit odečet", [
-    { key: "date", label: "Datum", type: "date", value: r.date || "" },
-    { key: "value", label: "Stav měřáku", value: String(r.value != null ? r.value : "") },
-    { key: "note", label: "Poznámka (volitelné)", value: r.note || "" },
+function editEnergyMeasurement(i) {
+  const m = energyObj().measurements[i]; if (!m) return;
+  openModal("Upravit měření", [
+    { key: "date", label: "Datum", type: "date", value: m.date || "" },
+    { key: "heat", label: "Teplo (m³)", value: String(m.heat != null ? m.heat : "") },
+    { key: "water", label: "Voda (m³)", value: String(m.water != null ? m.water : "") },
+    { key: "temp", label: "Venkovní teplota (°C)", value: String(m.temp != null ? m.temp : "") },
     { key: "_del", label: "Smazat? (napiš ANO)", value: "" }
   ], data => {
-    if ((data._del || "").trim().toUpperCase() === "ANO") { energyObj().readings.splice(i, 1); return; }
-    energyObj().readings[i] = { date: data.date, value: parseFloat(String(data.value).replace(",", ".").replace(/[^\d.-]/g, "")) || 0, note: data.note || "" };
+    if ((data._del || "").trim().toUpperCase() === "ANO") { energyObj().measurements.splice(i, 1); return; }
+    const num = v => v === "" ? null : (parseFloat(String(v).replace(",", ".")) || 0);
+    energyObj().measurements[i] = { date: data.date, heat: num(data.heat) || 0, water: num(data.water) || 0, temp: data.temp === "" ? null : num(data.temp) };
   });
 }
 function editEnergySettings() {
   const s = energyObj().settings;
   openModal("Ceník energií", [
-    { key: "pricePerM3", label: "Cena za jednotku (Kč)", value: String(s.pricePerM3 || "") },
-    { key: "unit", label: "Jednotka", value: s.unit || "m³" },
-    { key: "fixedPerYear", label: "Stálý plat / rok (Kč, volitelné)", value: String(s.fixedPerYear || "") }
+    { key: "pricePerM3", label: "Cena za m³ (aktuální)", value: String(s.pricePerM3 || "") },
+    { key: "priceOld", label: "Cena za m³ (starší období)", value: String(s.priceOld || "") },
+    { key: "priceChangeDate", label: "Platnost nové ceny od", type: "date", value: s.priceChangeDate || "" },
+    { key: "koef", label: "Koeficient (vyúčtování)", value: String(s.koef || 1) },
+    { key: "fixedPerYear", label: "Stálý plat / rok (Kč)", value: String(s.fixedPerYear || "") },
+    { key: "unit", label: "Jednotka", value: s.unit || "m³" }
   ], data => {
-    energyObj().settings = {
-      pricePerM3: parseFloat(String(data.pricePerM3).replace(",", ".")) || 0,
-      unit: data.unit || "m³",
-      fixedPerYear: parseFloat(String(data.fixedPerYear).replace(",", ".")) || 0
-    };
+    const n = v => parseFloat(String(v).replace(",", ".")) || 0;
+    energyObj().settings = { pricePerM3: n(data.pricePerM3), priceOld: n(data.priceOld), priceChangeDate: data.priceChangeDate || "", koef: n(data.koef) || 1, fixedPerYear: n(data.fixedPerYear), unit: data.unit || "m³" };
   });
 }
 
@@ -4898,27 +5096,29 @@ function importDomacnostFromJson() {
         const obj = JSON.parse(reader.result);
         if (!DB.houseWorks) DB.houseWorks = [];
         const e = energyObj();
-        let nH = 0, uH = 0, nR = 0;
+        let nH = 0, uH = 0, nM = 0;
         (obj.houseWorks || []).forEach(h => {
           const key = (h.title || "") + "|" + (h.room || "");
           const idx = DB.houseWorks.findIndex(x => (x.title || "") + "|" + (x.room || "") === key);
-          const item = { title: h.title || "", room: h.room || "", type: h.type || "Realizace", priority: h.priority || "Střední", price: +h.price || 0, status: h.status || "Plán", note: h.note || "", subtasks: Array.isArray(h.subtasks) ? h.subtasks.map(s => ({ text: s.text || "", done: !!s.done })) : [], done: !!h.done };
+          const item = { title: h.title || "", room: h.room || "", type: h.type || "Realizace", priority: h.priority || "Střední", price: +h.price || 0, dueDate: h.dueDate || "", status: h.status || "Plán", note: h.note || "", subtasks: Array.isArray(h.subtasks) ? h.subtasks.map(s => ({ text: s.text || "", done: !!s.done })) : [], done: !!h.done };
           if (idx >= 0) { DB.houseWorks[idx] = item; uH++; } else { DB.houseWorks.push(item); nH++; }
         });
         if (obj.energy) {
-          if (obj.energy.settings) e.settings = { pricePerM3: +obj.energy.settings.pricePerM3 || 0, unit: obj.energy.settings.unit || "m³", fixedPerYear: +obj.energy.settings.fixedPerYear || 0 };
-          (obj.energy.readings || []).forEach(r => {
-            if (!e.readings.some(x => x.date === r.date)) { e.readings.push({ date: r.date, value: +r.value || 0, note: r.note || "" }); nR++; }
+          if (obj.energy.settings) e.settings = Object.assign(e.settings, obj.energy.settings);
+          const have = new Set(e.measurements.map(x => x.date));
+          (obj.energy.measurements || obj.energy.readings || []).forEach(m => {
+            if (m.date && !have.has(m.date)) { e.measurements.push({ date: m.date, heat: +m.heat || 0, water: +m.water || 0, temp: m.temp == null ? null : +m.temp }); have.add(m.date); nM++; }
           });
         }
         save(); renderAll(); if (!currentModule) renderHub();
-        alert("Import Domácnosti hotový.\nDům: +" + nH + " nových, " + uH + " aktualizováno\nEnergie: +" + nR + " odečtů");
+        alert("Import Domácnosti hotový.\nDům: +" + nH + " nových, " + uH + " aktualizováno\nEnergie: +" + nM + " měření");
       } catch (er) { alert("Soubor se nepodařilo načíst: " + er.message); }
     };
     reader.readAsText(f, "utf-8");
   };
   inp.click();
 }
+
 
 function goto(page) {
   $$(".nav-item").forEach(n => n.classList.toggle("active", n.dataset.page === page));
