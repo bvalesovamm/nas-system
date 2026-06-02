@@ -2237,6 +2237,44 @@ function normalizeImportedTask(t) {
   };
 }
 
+// ===== Jednotná volba importu (Přepsat vše / Sloučit / Zrušit) — napříč všemi moduly =====
+let _impReplace = null, _impMerge = null;
+function importChoice(title, msg, onReplace, onMerge) {
+  _impReplace = onReplace; _impMerge = onMerge;
+  let el = document.getElementById("importChoiceBg");
+  if (!el) { el = document.createElement("div"); el.id = "importChoiceBg"; el.className = "modal-bg"; document.body.appendChild(el); }
+  el.innerHTML = `<div class="modal" style="max-width:480px">
+      <div class="modal-title">${esc(title)}</div>
+      <p style="font-size:13px;color:var(--ink-soft);line-height:1.6;margin:0">${msg}</p>
+      <div style="display:flex;flex-direction:column;gap:8px;margin-top:16px">
+        <button class="btn primary" style="text-align:left;padding:11px 14px" onclick="importChoicePick('merge')">✓ Sloučit — doplnit jen nové, mé úpravy ponechat</button>
+        <button class="btn" style="text-align:left;padding:11px 14px" onclick="importChoicePick('replace')">⟳ Přepsat vše ze souboru (nahradí i to, cos měnila)</button>
+        <button class="btn" style="text-align:left;padding:11px 14px" onclick="importChoicePick('cancel')">✕ Zrušit</button>
+      </div></div>`;
+  el.classList.add("show");
+}
+function importChoicePick(mode) {
+  const el = document.getElementById("importChoiceBg"); if (el) el.classList.remove("show");
+  const r = _impReplace, m = _impMerge; _impReplace = _impMerge = null;
+  if (mode === "replace" && r) r();
+  else if (mode === "merge" && m) m();
+}
+// upsert kolekce dle klíče; 'replace' přepíše shodné položky, 'merge' je ponechá; obojí přidá nové
+function mergeCollection(target, incoming, keyFn, normalize, mode, prepend) {
+  let added = 0, updated = 0, kept = 0;
+  if (!Array.isArray(incoming)) return { added, updated, kept };
+  const idx = new Map(); target.forEach((x, i) => idx.set(keyFn(x), i));
+  incoming.forEach(raw => {
+    const item = normalize ? normalize(raw) : raw;
+    if (item == null) return;
+    const k = keyFn(item);
+    if (idx.has(k)) { if (mode === "replace") { target[idx.get(k)] = item; updated++; } else kept++; }
+    else { if (prepend) target.unshift(item); else target.push(item); idx.set(k, target.length - 1); added++; }
+  });
+  return { added, updated, kept };
+}
+function importChoiceMsg() { return "Vyber, jak naložit s daty, která už v appce máš:<br><b>Sloučit</b> = přidá jen nové položky a tvé úpravy v appce nechá být.<br><b>Přepsat vše</b> = položky se stejným názvem nahradí verzí ze souboru."; }
+
 function importTasksFromJson() {
   const inp = document.createElement("input");
   inp.type = "file";
@@ -2249,27 +2287,17 @@ function importTasksFromJson() {
       try {
         const obj = JSON.parse(reader.result);
         if (!DB.adminTasks) DB.adminTasks = [];
-        let nA = 0, nC = 0, uA = 0, uC = 0, sk = 0;
-        const exA = (obj.adminTasks || []).filter(t => t.title && DB.adminTasks.some(x => x.title === t.title)).length;
-        const exC = (obj.careTasks || []).filter(t => t.title && DB.tasks.some(x => x.title === t.title)).length;
-        let overwrite = true;
-        if (exA + exC > 0) overwrite = confirm((exA + exC) + " úkolů se stejným názvem už v appce máš.\n\nOK = přepsat je verzí ze souboru (přijdeš o úpravy, cos u nich dělala v appce)\nZrušit = nechat tvoje a doplnit jen nové");
-        (obj.adminTasks || []).forEach(t => {
-          if (!t.title) return;
-          const i = DB.adminTasks.findIndex(x => x.title === t.title);
-          if (i >= 0) { if (overwrite) { DB.adminTasks[i] = normalizeImportedTask(t); uA++; } else sk++; }
-          else { DB.adminTasks.push(normalizeImportedTask(t)); nA++; }
-        });
-        (obj.careTasks || []).forEach(t => {
-          if (!t.title) return;
-          const i = DB.tasks.findIndex(x => x.title === t.title);
-          if (i >= 0) { if (overwrite) { DB.tasks[i] = normalizeImportedTask(t); uC++; } else sk++; }
-          else { DB.tasks.unshift(normalizeImportedTask(t)); nC++; }
-        });
-        save();
-        renderAll();
-        if (!currentModule) renderHub();
-        alert("Import hotový.\nÚkoly (admin): +" + nA + " nových, " + uA + " aktualizováno\nPéče: +" + nC + " nových, " + uC + " aktualizováno" + (sk ? "\nPonecháno beze změny: " + sk : ""));
+        const normT = t => t && t.title ? normalizeImportedTask(t) : null;
+        const hasDup = (obj.adminTasks || []).some(t => t.title && DB.adminTasks.some(x => x.title === t.title))
+          || (obj.careTasks || []).some(t => t.title && DB.tasks.some(x => x.title === t.title));
+        const run = (mode) => {
+          const a = mergeCollection(DB.adminTasks, obj.adminTasks, t => t.title, normT, mode, false);
+          const c = mergeCollection(DB.tasks, obj.careTasks, t => t.title, normT, mode, true);
+          save(); renderAll(); if (!currentModule) renderHub();
+          alert("Import úkolů hotový.\nAdmin: +" + a.added + " nových" + (a.updated ? ", " + a.updated + " přepsáno" : "") + (a.kept ? ", " + a.kept + " ponecháno" : "") + "\nPéče: +" + c.added + " nových" + (c.updated ? ", " + c.updated + " přepsáno" : "") + (c.kept ? ", " + c.kept + " ponecháno" : ""));
+        };
+        if (hasDup) importChoice("Import úkolů (admin + péče)", importChoiceMsg(), () => run("replace"), () => run("merge"));
+        else run("replace");
       } catch (e) {
         alert("Soubor se nepodařilo načíst: " + e.message);
       }
@@ -5217,26 +5245,23 @@ function importDomacnostFromJson() {
         const obj = JSON.parse(reader.result);
         if (!DB.houseWorks) DB.houseWorks = [];
         const e = energyObj();
-        let nH = 0, uH = 0, nM = 0, sk = 0;
         const keyOf = h => (h.title || "") + "|" + (h.room || "");
-        const exH = (obj.houseWorks || []).filter(h => DB.houseWorks.some(x => keyOf(x) === keyOf(h))).length;
-        let overwrite = true;
-        if (exH > 0) overwrite = confirm(exH + " realizací se stejným názvem už v appce máš.\n\nOK = přepsat je verzí ze souboru (přijdeš o úpravy z appky)\nZrušit = nechat tvoje a doplnit jen nové");
-        (obj.houseWorks || []).forEach(h => {
-          const idx = DB.houseWorks.findIndex(x => keyOf(x) === keyOf(h));
-          const item = { title: h.title || "", room: h.room || "", type: h.type || "Realizace", priority: h.priority || "Střední", price: +h.price || 0, dueDate: h.dueDate || "", status: h.status || "Plán", note: h.note || "", subtasks: Array.isArray(h.subtasks) ? h.subtasks.map(s => ({ text: s.text || "", done: !!s.done })) : [], done: !!h.done };
-          if (idx >= 0) { if (overwrite) { DB.houseWorks[idx] = item; uH++; } else sk++; }
-          else { DB.houseWorks.push(item); nH++; }
-        });
-        if (obj.energy) {
-          if (obj.energy.settings) e.settings = Object.assign(e.settings, obj.energy.settings);
-          const have = new Set(e.measurements.map(x => x.date));
-          (obj.energy.measurements || obj.energy.readings || []).forEach(m => {
-            if (m.date && !have.has(m.date)) { e.measurements.push({ date: m.date, heat: +m.heat || 0, water: +m.water || 0, temp: m.temp == null ? null : +m.temp }); have.add(m.date); nM++; }
-          });
-        }
-        save(); renderAll(); if (!currentModule) renderHub();
-        alert("Import Domácnosti hotový.\nDům: +" + nH + " nových, " + uH + " aktualizováno" + (sk ? ", " + sk + " ponecháno" : "") + "\nEnergie: +" + nM + " měření (duplicity dle data se přeskakují)");
+        const normH = h => ({ title: h.title || "", room: h.room || "", type: h.type || "Realizace", priority: h.priority || "Střední", price: +h.price || 0, dueDate: h.dueDate || "", status: h.status || "Plán", note: h.note || "", subtasks: Array.isArray(h.subtasks) ? h.subtasks.map(s => ({ text: s.text || "", done: !!s.done })) : [], done: !!h.done });
+        const measIn = obj.energy && (obj.energy.measurements || obj.energy.readings);
+        const hasDup = (obj.houseWorks || []).some(h => DB.houseWorks.some(x => keyOf(x) === keyOf(h)))
+          || (Array.isArray(measIn) && measIn.some(m => m.date && e.measurements.some(x => x.date === m.date)));
+        const run = (mode) => {
+          const H = mergeCollection(DB.houseWorks, obj.houseWorks, keyOf, normH, mode, false);
+          let M = { added: 0, updated: 0, kept: 0 };
+          if (obj.energy) {
+            if (obj.energy.settings && mode === "replace") e.settings = Object.assign(e.settings, obj.energy.settings);
+            M = mergeCollection(e.measurements, measIn, m => m.date, m => ({ date: m.date, heat: +m.heat || 0, water: +m.water || 0, temp: m.temp == null ? null : +m.temp }), mode, false);
+          }
+          save(); renderAll(); if (!currentModule) renderHub();
+          alert("Import Domácnosti hotový.\nDům: +" + H.added + " nových" + (H.updated ? ", " + H.updated + " přepsáno" : "") + (H.kept ? ", " + H.kept + " ponecháno" : "") + "\nEnergie: +" + M.added + " měření" + (M.updated ? ", " + M.updated + " přepsáno" : "") + (M.kept ? ", " + M.kept + " ponecháno" : ""));
+        };
+        if (hasDup) importChoice("Import Domácnosti", importChoiceMsg(), () => run("replace"), () => run("merge"));
+        else run("replace");
       } catch (er) { alert("Soubor se nepodařilo načíst: " + er.message); }
     };
     reader.readAsText(f, "utf-8");
@@ -5736,17 +5761,19 @@ function importFinanceFromJson() {
         const obj = JSON.parse(reader.result);
         const fin = finObj();
         const has = fin.predikce.length || fin.zaplaceno.length || fin.loans.length || fin.rozpocet.length || fin.vyuctovani.length;
-        let go = true;
-        if (has) go = confirm("Finance už nějaká data mají.\n\nOK = přepsat je daty ze souboru\nZrušit = nechat stávající");
-        if (!go) return;
-        if (obj.predikce) fin.predikce = obj.predikce;
-        if (obj.zaplaceno) fin.zaplaceno = obj.zaplaceno;
-        if (obj.loans) fin.loans = obj.loans;
-        if (obj.rozpocet) fin.rozpocet = obj.rozpocet;
-        if (obj.vyuctovani) fin.vyuctovani = obj.vyuctovani;
-        if (obj.prijmy != null) fin.prijmy = obj.prijmy;
-        save(); renderAll(); if (!currentModule) renderHub();
-        alert("Import financí hotový.\nPredikce: " + fin.predikce.length + " · Zaplaceno: " + fin.zaplaceno.length + " · Úvěry: " + fin.loans.length + "\nRozpočet: " + fin.rozpocet.length + " · Vyúčtování: " + fin.vyuctovani.length + " měsíců");
+        const run = (mode) => {
+          const p = mergeCollection(fin.predikce, obj.predikce, r => r.date + "|" + (r.who || "") + "|" + (r.detail || ""), null, mode, false);
+          const z = mergeCollection(fin.zaplaceno, obj.zaplaceno, x => (x.what || "") + "|" + (x.month || ""), null, mode, true);
+          const l = mergeCollection(fin.loans, obj.loans, x => x.name, null, mode, false);
+          const ro = mergeCollection(fin.rozpocet, obj.rozpocet, x => x.item, null, mode, false);
+          const v = mergeCollection(fin.vyuctovani, obj.vyuctovani, x => x.month, null, mode, false);
+          if (obj.prijmy != null && (mode === "replace" || !fin.prijmy)) fin.prijmy = obj.prijmy;
+          save(); renderAll(); if (!currentModule) renderHub();
+          const part = (lab, r) => lab + ": +" + r.added + (r.updated ? "/" + r.updated + " přepsáno" : "") + (r.kept ? "/" + r.kept + " ponecháno" : "");
+          alert("Import financí hotový (" + (mode === "replace" ? "přepsáno vše" : "sloučeno") + ").\n" + part("Predikce", p) + "\n" + part("Zaplaceno", z) + "\n" + part("Úvěry", l) + "\n" + part("Rozpočet", ro) + "\n" + part("Vyúčtování", v));
+        };
+        if (has) importChoice("Import financí", importChoiceMsg(), () => run("replace"), () => run("merge"));
+        else run("replace");
       } catch (er) { alert("Soubor se nepodařilo načíst: " + er.message); }
     };
     reader.readAsText(f, "utf-8");
