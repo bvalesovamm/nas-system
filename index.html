@@ -5639,18 +5639,25 @@ function splitBody() {
     const sm = (l.schedule || []).reduce((s, x) => s + (+x.m || 0), 0), sb = (l.schedule || []).reduce((s, x) => s + (+x.b || 0), 0);
     const paid = sm + sb; const n = (l.schedule || []).length; const months = (l.schedule || []).map(x => x.month).filter(Boolean).sort();
     const last = (l.schedule || [])[(l.schedule || []).length - 1] || {}; const lastPmt = (+last.m || 0) + (+last.b || 0);
-    const princ = +l.principal || loanPrincipal(l.name);
+    const principal = +l.principal || loanPrincipal(l.name);   // nesplacená jistina (základ úročení)
+    const orig = +l.origPrincipal || principal;                // původní výše
     const rate = +l.rate || 0;
-    const left = loanRemaining(l);
-    const pct = princ ? Math.min(100, Math.max(0, 100 * (princ - left) / princ)) : 0;
+    const left = loanRemaining(l);                             // nesplacená jistina po dalších splátkách
+    const pct = orig ? Math.min(100, Math.max(0, 100 * (orig - left) / orig)) : 0;
     const col = catColor(l.name);
     let nextStr = "";
     if (+l.nextAmount) { const dt = l.nextDate ? (l.nextDate.slice(8, 10) + "." + l.nextDate.slice(5, 7) + ".") : ""; nextStr = `<div class="estat-sub" style="color:${col.c};font-weight:600">Příští splátka ${fmtCZK(l.nextAmount)}${dt ? " k " + dt : ""}</div>`; }
+    let head;
+    if (principal) {
+      head = `<div class="loan-bar"><span style="width:${pct.toFixed(0)}%;background:${col.c}"></span></div>
+        <div class="estat-sub">Nesplacená jistina <b>${fmtCZK(left)}</b>${rate ? ` · ${fmtNum(rate, 2)} % p.a.` : ""}</div>
+        <div class="estat-sub">Původní ${fmtCZK(orig)}${+l.payoff ? ` · ke splacení dnes ${fmtCZK(l.payoff)}` : ""}</div>`;
+    } else {
+      head = `<div class="estat-sub" style="margin-top:8px">Zaplaceno <b>${fmtCZK(paid)}</b> (jistina nezadána)</div>`;
+    }
     return `<div class="estat" style="border-top:3px solid ${col.c}">
         <div class="estat-val" style="font-size:18px">${esc(l.name || "Úvěr")}</div>
-        ${princ ? `<div class="loan-bar"><span style="width:${pct.toFixed(0)}%;background:${col.c}"></span></div>
-        <div class="estat-sub">Jistina ${fmtCZK(princ)} · zbývá <b>${fmtCZK(left)}</b>${rate ? ` · ${fmtNum(rate, 2)} % p.a.` : " · úrok nezadán"}</div>` :
-        `<div class="estat-sub" style="margin-top:8px">Zaplaceno <b>${fmtCZK(paid)}</b> (jistina nezadána)</div>`}
+        ${head}
         <div class="estat-sub">Zaplaceno ${fmtCZK(paid)} · ${n} splátek · M ${fmtCZK(sm)} · B ${fmtCZK(sb)}</div>
         ${nextStr || `<div class="estat-sub">Splátka ${fmtCZK(lastPmt)}${months.length ? " · " + months[0].slice(0, 7) + " – " + months[months.length - 1].slice(0, 7) : ""}</div>`}
         <div style="margin-top:8px;display:flex;gap:6px"><button class="btn" style="padding:5px 10px;font-size:12px" onclick="addLoanPayment(${li})">+ Splátka</button><button class="btn" style="padding:5px 10px;font-size:12px" onclick="editLoan(${li})">✎ úprava / úrok</button></div>
@@ -5697,14 +5704,16 @@ function editLoan(li) {
   const l = finObj().loans[li]; if (!l) return;
   openModal("Upravit úvěr", [
     { key: "name", label: "Název", value: l.name || "" },
-    { key: "principal", label: "Zůstatek / výše úvěru (Kč)", value: String(l.principal || loanPrincipal(l.name) || "") },
+    { key: "principal", label: "Nesplacená jistina (Kč) — základ úročení", value: String(l.principal || loanPrincipal(l.name) || "") },
+    { key: "origPrincipal", label: "Původní výše úvěru (Kč, volitelné)", value: l.origPrincipal != null ? String(l.origPrincipal) : "" },
+    { key: "payoff", label: "Zůstatek ke splacení dnes (Kč, volitelné)", value: l.payoff != null ? String(l.payoff) : "" },
     { key: "rate", label: "Úrok % p.a. (zbytek se přepočítá)", value: l.rate != null ? String(l.rate) : "" },
     { key: "nextAmount", label: "Příští splátka (Kč, volitelné)", value: l.nextAmount != null ? String(l.nextAmount) : "" },
     { key: "nextDate", label: "Datum příští splátky", type: "date", value: l.nextDate || "" },
     { key: "_del", label: "Smazat celý úvěr? (napiš ANO)", value: "" }
   ], d => {
     if ((d._del || "").trim().toUpperCase() === "ANO") { finObj().loans.splice(li, 1); return; }
-    l.name = d.name || l.name; l.principal = evalExpr(d.principal); l.rate = evalExpr(d.rate); l.nextAmount = evalExpr(d.nextAmount); l.nextDate = d.nextDate || "";
+    l.name = d.name || l.name; l.principal = evalExpr(d.principal); l.origPrincipal = evalExpr(d.origPrincipal); l.payoff = evalExpr(d.payoff); l.rate = evalExpr(d.rate); l.nextAmount = evalExpr(d.nextAmount); l.nextDate = d.nextDate || "";
   });
 }
 function addLoanPayment(li) {
