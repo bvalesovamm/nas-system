@@ -2739,7 +2739,7 @@ function renderTasks(store) {
   return head + `<div class="kanban">${cols}</div>`;
 }
 
-function toggleTaskExpand(key) { taskExpanded[key] = !taskExpanded[key]; renderAll(); }
+function toggleTaskExpand(key) { taskExpanded[key] = (taskExpanded[key] !== false) ? false : true; renderAll(); }
 
 // Tabulkový pohled: kategorie jako sekce, úkoly pod sebou seřazené dle termínu, rozbalitelné položky
 function renderTaskTable(cats, byCat, list, store) {
@@ -2753,7 +2753,7 @@ function renderTaskTable(cats, byCat, list, store) {
       const doneN = subs.filter(s => s.done).length;
       const sub = catSub(t.category);
       const dateLbl = t.dueDate ? fmtDateShort(t.dueDate) : (t.deadline || "");
-      const expanded = !!taskExpanded[key];
+      const expanded = taskExpanded[key] !== false; // defaultně rozbaleno (položky vidět „ven")
       let subRows = "";
       if (expanded && subs.length) {
         subRows = `<div class="tsubs" style="border-left:2px solid ${col.bg}">` + subs.map((s, si) => `
