@@ -452,6 +452,36 @@ body {
   grid-template-columns: repeat(7, 1fr);
   gap: 4px;
 }
+/* Týdenní agenda na hubu */
+#undoFab {
+  position: fixed; left: 16px; bottom: 16px; z-index: 1500;
+  align-items: center; gap: 6px;
+  background: var(--ink); color: #fff; border: none;
+  padding: 11px 16px; border-radius: 999px; cursor: pointer;
+  font-size: 14px; font-weight: 600; font-family: inherit;
+  box-shadow: 0 4px 14px rgba(0,0,0,0.22); transition: transform 0.12s, background 0.12s;
+}
+#undoFab:hover { background: var(--accent); transform: translateY(-1px); }
+#undoFab:active { transform: translateY(0); }
+@media (max-width: 760px) { #undoFab { left: 12px; bottom: 12px; padding: 10px 14px; } }
+.wk-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 8px; }
+.wk-day { border: 1px solid var(--line); border-radius: 12px; padding: 10px; background: var(--bg-card); min-height: 120px; display: flex; flex-direction: column; gap: 6px; }
+.wk-day.today { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent) inset; background: #fff; }
+.wk-day.past { opacity: 0.6; }
+.wk-day-head { display: flex; flex-direction: column; gap: 1px; margin-bottom: 2px; }
+.wk-day-name { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: var(--ink); }
+.wk-day-date { font-size: 11px; color: var(--ink-muted); }
+.wk-ev { display: flex; align-items: center; gap: 6px; padding: 6px 8px; border-radius: 8px; background: var(--bg); cursor: pointer; font-size: 12px; line-height: 1.3; transition: background 0.12s; }
+.wk-ev:hover { background: var(--line); }
+.wk-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+.wk-ev-txt { flex: 1; min-width: 0; }
+.wk-empty { font-size: 12px; color: var(--ink-muted); text-align: center; padding: 6px 0; }
+@media (max-width: 760px) {
+  .wk-grid { grid-template-columns: 1fr; }
+  .wk-day { min-height: 0; flex-direction: row; flex-wrap: wrap; align-items: center; }
+  .wk-day-head { flex-direction: row; gap: 8px; align-items: baseline; width: 100%; }
+  .wk-empty { padding: 0; margin-left: auto; }
+}
 .cal-dayname {
   text-align: center;
   font-size: 10px;
@@ -1496,6 +1526,10 @@ let unsubscribe = null; // odhlášení live listeneru
 let isAuthenticated = false;
 let isInitialLoad = true;
 let saveDebounce = null;
+// ===== Undo (krok zpět) — drží stavy DB před změnami v paměti =====
+let _undoStack = [];      // serializované stavy DB PŘED jednotlivými změnami
+let _undoBase = null;     // stav DB jako po poslední změně (= před tou příští)
+const UNDO_MAX = 20;      // kolik kroků zpět držet
 let snapshots = []; // denní záložní snímky (drží se v Firestore dokumentu vedle dat)
 
 // ============================================================
@@ -1661,6 +1695,7 @@ function loadData() {
       // Update DB jen pokud se opravdu změnilo (jinak by uložení vlastních dat smyklo render)
       if (JSON.stringify(DB) !== JSON.stringify(remoteData)) {
         DB = remoteData;
+        resetUndo();   // cizí změna z jiného zařízení — undo historie už neplatí
         renderAll();
         if (!currentModule) renderHub();
         if (!isInitialLoad) {
@@ -1678,6 +1713,7 @@ function loadData() {
     document.getElementById("syncIndicator").style.display = "flex";
     setSyncStatus("ok", "Připojeno");
     isInitialLoad = false;
+    resetUndo();   // výchozí stav pro undo
     renderAll();   // připraví care modul (zůstává skrytý, dokud do něj nevejdeš)
     goHub();       // úvodní obrazovka = rozcestník modulů
     maybeDailySnapshot(); // automatická denní záloha
@@ -1714,23 +1750,61 @@ function migrateAssignees(db) {
 
 function save() {
   if (!firestore || !DB) return;
+  // Undo: zachyť stav PŘED touto změnou (synchronně, ještě před debounce)
+  if (_undoBase !== null) { _undoStack.push(_undoBase); if (_undoStack.length > UNDO_MAX) _undoStack.shift(); }
+  _undoBase = JSON.stringify(DB);
+  updateUndoFab();
   // Debounce — když uživatel rychle klikne víc tlačítek, počká 300 ms a uloží jednou
   if (saveDebounce) clearTimeout(saveDebounce);
   setSyncStatus("syncing", "Ukládám…");
+  saveDebounce = setTimeout(() => { persistNow(); saveDebounce = null; }, 300);
+}
 
-  saveDebounce = setTimeout(() => {
-    const fb = window.__firebaseModule;
-    const docRef = fb.doc(firestore, ...DOC_PATH);
-    fb.setDoc(docRef, { data: DB, snapshots: snapshots, updatedAt: Date.now() })
-      .then(() => setSyncStatus("ok", "Uloženo"))
-      .then(() => setTimeout(() => setSyncStatus("ok", "Připojeno"), 1200))
-      .catch(err => {
-        setSyncStatus("error", "Chyba uložení");
-        console.error("Save failed:", err);
-        alert("Nepodařilo se uložit změny: " + err.message);
-      });
-    saveDebounce = null;
-  }, 300);
+// Okamžitý zápis do Firestore (bez debounce a bez zachycení undo)
+function persistNow() {
+  if (!firestore || !DB) return;
+  const fb = window.__firebaseModule;
+  const docRef = fb.doc(firestore, ...DOC_PATH);
+  return fb.setDoc(docRef, { data: DB, snapshots: snapshots, updatedAt: Date.now() })
+    .then(() => setSyncStatus("ok", "Uloženo"))
+    .then(() => setTimeout(() => setSyncStatus("ok", "Připojeno"), 1200))
+    .catch(err => {
+      setSyncStatus("error", "Chyba uložení");
+      console.error("Save failed:", err);
+      alert("Nepodařilo se uložit změny: " + err.message);
+    });
+}
+
+// Vrátí poslední změnu (krok zpět)
+function undoLast() {
+  if (!_undoStack.length) { return; }
+  const prev = _undoStack.pop();
+  try { DB = JSON.parse(prev); } catch (e) { return; }
+  _undoBase = prev;            // vrácený stav se stává základem (samotné undo se nezachytává)
+  persistNow();                // ulož bez nového undo-záznamu
+  rerenderActive();
+  updateUndoFab();
+  setSyncStatus("ok", "Vráceno o krok zpět ↶");
+  setTimeout(() => setSyncStatus("ok", "Připojeno"), 1500);
+}
+
+// Reset undo historie (po cizí změně ze synchronizace / po načtení)
+function resetUndo() { _undoStack = []; _undoBase = DB ? JSON.stringify(DB) : null; updateUndoFab(); }
+
+// Překreslí právě zobrazenou obrazovku
+function rerenderActive() {
+  renderAll();
+  if (!currentModule) { renderHub(); return; }
+  if (currentModule === "tasks") renderTasksModule();
+  else if (currentModule === "home") renderDomacnostModule();
+  else if (currentModule === "finance") renderFinanceModule();
+}
+
+function updateUndoFab() {
+  const b = document.getElementById("undoFab");
+  if (!b) return;
+  if (_undoStack.length) { b.style.display = "inline-flex"; b.title = "Vrátit poslední změnu (" + _undoStack.length + " v paměti)"; }
+  else b.style.display = "none";
 }
 
 // ============================================================
@@ -1834,6 +1908,8 @@ function openModal(title, fields, onSave) {
       return `<div class="field"><label>${esc(f.label)}</label><input type="text" list="dl-${f.key}" data-key="${f.key}" value="${val}" placeholder="${esc(f.placeholder || "")}" autocomplete="off"><datalist id="dl-${f.key}">${opts}</datalist></div>`;
     } else if (f.type === "date") {
       return `<div class="field"><label>${esc(f.label)}</label><input type="date" data-key="${f.key}" value="${val}"></div>`;
+    } else if (f.type === "time") {
+      return `<div class="field"><label>${esc(f.label)}</label><input type="time" data-key="${f.key}" value="${val}"></div>`;
     } else if (f.type === "subtasks") {
       modalState.subtasks = (Array.isArray(f.value) ? f.value : []).map(s => ({ text: s.text || "", done: !!s.done }));
       return `<div class="field"><label>${esc(f.label)}</label><div id="subtaskEditor">${renderSubtaskEditor()}</div><button type="button" class="btn" style="margin-top:8px" onclick="modalAddSubtask()">+ Přidat položku</button></div>`;
@@ -2169,6 +2245,7 @@ function taskFormFields(store, t) {
     { key: "title", label: "Úkol", value: t.title || "" },
     { key: "category", label: "Kategorie (vyber nebo napiš novou)", type: "datalist", options: cats, value: t.category || "", placeholder: "např. Dům, Provoz, Projekt…" },
     { key: "dueDate", label: "Datum (z kalendáře)", type: "date", value: t.dueDate || "" },
+    { key: "dueTime", label: "Čas — upozorní tě v tento čas (volitelné)", type: "time", value: t.dueTime || "" },
     { key: "assignee", label: "Řešitel", type: "select", options: TASK_ASSIGNEES, value: t.assignee || "(nikdo)" },
     { key: "repeatFreq", label: "Opakování (odvodí se z data)", type: "select", options: REPEAT_OPTIONS, value: repeatFreqLabel(t.repeat) },
     { key: "priority", label: "Priorita", type: "select", options: ["Vysoká", "Střední", "Nízká", "Plánováno", "Stálé"], value: t.priority || "Střední" },
@@ -2186,6 +2263,10 @@ function applyTaskForm(t, data) {
   const subtasks = data.subtasks || t.subtasks || [];
   delete data.subtasks;
   const out = { ...t, ...data, assignee, repeat, subtasks, done };
+  // připomínka: datum + čas → remindAt (ISO). Při změně času/data znovu povol upozornění.
+  const remindAt = (out.dueDate && out.dueTime) ? (out.dueDate + "T" + out.dueTime) : "";
+  if (remindAt !== (t.remindAt || "")) out.notified = false;
+  out.remindAt = remindAt;
   if (done && !out.completedDate) out.completedDate = new Date().toISOString().slice(0, 10);
   if (!done) out.completedDate = "";
   return out;
@@ -2226,12 +2307,54 @@ function addTask(store) {
   });
 }
 
+// ===== Připomínky úkolů (lokální notifikace / „budík") =====
+let _reminderLoop = null;
+function notifyState() { return (typeof Notification === "undefined") ? "unsupported" : Notification.permission; }
+function enableNotifications() {
+  if (typeof Notification === "undefined") { alert("Tento prohlížeč notifikace nepodporuje."); return; }
+  Notification.requestPermission().then(p => {
+    if (p === "granted") { alert("Připomínky zapnuty ✓\n\nU úkolu nastav datum + čas a appka tě v ten čas upozorní.\nFunguje, když je appka otevřená nebo běží na pozadí (na telefonu ji nech jako appku na ploše)."); checkReminders(); }
+    else alert("Notifikace nejsou povolené. Můžeš je zapnout v nastavení prohlížeče u této stránky.");
+    if (!currentModule) renderHub();
+  }).catch(() => {});
+}
+function showTaskNotification(title, body) {
+  const opts = { body: body || "", icon: "icon-192.png", badge: "icon-192.png", tag: title, renotify: true };
+  try {
+    if (navigator.serviceWorker && navigator.serviceWorker.ready) {
+      navigator.serviceWorker.ready.then(reg => reg.showNotification(title, opts)).catch(() => { try { new Notification(title, opts); } catch (e) { } });
+    } else { new Notification(title, opts); }
+  } catch (e) { try { new Notification(title, opts); } catch (e2) { } }
+}
+function checkReminders() {
+  if (!DB || notifyState() !== "granted") return;
+  const now = Date.now(); let changed = false;
+  [DB.tasks || [], DB.adminTasks || []].forEach(list => {
+    list.forEach(t => {
+      if (!t || t.done || t.notified || !t.remindAt) return;
+      const due = new Date(t.remindAt).getTime(); if (isNaN(due)) return;
+      if (due <= now) {
+        // upozorni jen u nedávno splatných (do 12 h zpět), starší jen tiše označ
+        if (now - due < 12 * 3600 * 1000) showTaskNotification("🔔 " + (t.title || "Úkol"), (t.category ? t.category + " · " : "") + "Naplánováno na " + t.remindAt.replace("T", " "));
+        t.notified = true; changed = true;
+      }
+    });
+  });
+  if (changed && typeof save === "function") save();
+}
+function startReminderLoop() {
+  if (_reminderLoop) return;
+  _reminderLoop = setInterval(checkReminders, 60000);
+  checkReminders();
+}
+
 // Import úkolů z JSON souboru (admin úkoly -> modul Úkoly, dětské -> Péče).
 function normalizeImportedTask(t) {
   return {
     title: t.title || "", category: t.category || "", priority: t.priority || "Střední",
     deadline: t.deadline || "", dueDate: t.dueDate || "", assignee: t.assignee || "",
     repeat: t.repeat || null, status: t.status || "Otevřeno", contact: t.contact || "",
+    dueTime: t.dueTime || "", remindAt: t.remindAt || "", notified: !!t.notified,
     subtasks: Array.isArray(t.subtasks) ? t.subtasks.map(s => ({ text: s.text || "", done: !!s.done })) : [],
     done: !!t.done, completedDate: t.completedDate || ""
   };
@@ -2438,8 +2561,30 @@ function toggleSubtask(store, ti, si) {
   renderAll();
 }
 
+// Nadřazená kategorie (před „ - ") pro sloučení sloupců, a podkategorie pro štítek
+function catParent(c) { return String(c || "").split(/\s[-–—]\s/)[0].trim() || "(bez kategorie)"; }
+function catSub(c) { const p = String(c || "").split(/\s[-–—]\s/); return p.length > 1 ? p.slice(1).join(" – ").trim() : ""; }
+// Časové řazení i pro české textové termíny („květen 2026", „léto 2026", „únor 2027")
+const MONTHS_CZ_MAP = { "leden": 1, "únor": 2, "unor": 2, "březen": 3, "brezen": 3, "duben": 4, "květen": 5, "kveten": 5, "červenec": 7, "cervenec": 7, "červen": 6, "cerven": 6, "srpen": 8, "září": 9, "zari": 9, "říjen": 10, "rijen": 10, "listopad": 11, "prosinec": 12 };
+const SEASON_CZ = { "jaro": 3, "léto": 7, "leto": 7, "podzim": 10, "zima": 1 };
+function careDateKey(due) {
+  if (!due) return "9999-98";
+  const s = String(due).trim().toLowerCase();
+  const iso = s.match(/(\d{4})-(\d{2})(?:-(\d{2}))?/);
+  if (iso) return iso[1] + "-" + iso[2] + "-" + (iso[3] || "01");
+  const ym = s.match(/(20\d{2})/); const year = ym ? ym[1] : null;
+  if (year) {
+    const names = Object.keys(MONTHS_CZ_MAP).sort((a, b) => b.length - a.length); // delší dřív (červenec před červen)
+    for (const n of names) if (s.indexOf(n) >= 0) return year + "-" + String(MONTHS_CZ_MAP[n]).padStart(2, "0") + "-01";
+    for (const se in SEASON_CZ) if (s.indexOf(se) >= 0) return year + "-" + String(SEASON_CZ[se]).padStart(2, "0") + "-15";
+    return year + "-06-30"; // jen rok
+  }
+  return "9999-99"; // neparsovatelné (např. „15+ let", „1. neděle…") = na konec
+}
+
 function taskCard(t, idx, store) {
   const isDone = t.done || t.status === "Hotovo" || t.status === "Splněno";
+  const sub = catSub(t.category);
   const dateLbl = t.dueDate ? fmtDateShort(t.dueDate) : (t.deadline || "");
   const subs = t.subtasks || [];
   const open = subs.filter(s => !s.done);
@@ -2465,7 +2610,9 @@ function taskCard(t, idx, store) {
         <div class="kan-title ${isDone ? 'done' : ''}">${esc(t.title || '')}</div>
         ${subHtml}
         <div class="kan-meta">
-          ${dateLbl ? `<span class="kan-date">📆 ${esc(dateLbl)}</span>` : ''}
+          ${sub ? `<span class="tag neutral">${esc(sub)}</span>` : ''}
+          ${dateLbl ? `<span class="kan-date">📆 ${esc(dateLbl)}${t.dueTime ? ' ' + esc(t.dueTime) : ''}</span>` : ''}
+          ${t.remindAt ? `<span class="tag ${t.notified ? 'neutral' : 'yellow'}">🔔${t.notified ? ' ✓' : ''}</span>` : ''}
           ${subs.length ? `<span class="kan-prog">${doneN}/${subs.length}</span>` : ''}
           ${t.repeat ? `<span class="tag neutral">↻ ${esc(repeatLabel(t.repeat))}</span>` : ''}
           ${assigneeBadge(t.assignee)}
@@ -2533,13 +2680,12 @@ function renderTasks(store) {
       </div>`;
   }
 
-  // KANBAN — sloupce podle kategorií, v každém podle data
+  // KANBAN — sloupce po NADŘAZENÉ kategorii (GENETIKA + GENETIKA – MATKA → jeden sloupec), uvnitř časově
   const byCat = {};
-  openTasks.forEach(t => { const c = t.category || "(bez kategorie)"; (byCat[c] = byCat[c] || []).push(t); });
+  openTasks.forEach(t => { const c = catParent(t.category); (byCat[c] = byCat[c] || []).push(t); });
   const cats = Object.keys(byCat).sort((a, b) =>
     a === "(bez kategorie)" ? 1 : b === "(bez kategorie)" ? -1 : a.localeCompare(b, "cs"));
-  const dkey = t => t.dueDate || "9999-12-31";
-  cats.forEach(c => byCat[c].sort((a, b) => dkey(a).localeCompare(dkey(b))));
+  cats.forEach(c => byCat[c].sort((a, b) => careDateKey(a.dueDate).localeCompare(careDateKey(b.dueDate)) || (a.title || "").localeCompare(b.title || "", "cs")));
 
   const cols = cats.map(c => { const col = catColor(c); return `
     <div class="kan-col" style="border-top:3px solid ${col.c}">
@@ -4553,10 +4699,13 @@ function renderHub() {
   }).join("");
   const cal = document.getElementById("hubCalendar");
   if (cal) cal.innerHTML = renderHubCalendar();
+  startReminderLoop();
 }
 
 // ── Hub kalendář: sdružuje datované události napříč moduly ──────────
+function mondayOf(d) { const x = new Date(d); x.setHours(0, 0, 0, 0); let o = x.getDay() - 1; if (o < 0) o = 6; x.setDate(x.getDate() - o); return x; }
 let hubCalMonth = (() => { const d = new Date(); return new Date(d.getFullYear(), d.getMonth(), 1); })();
+let hubCalWeek = mondayOf(new Date()); // pondělí zobrazeného týdne
 let hubDayDetail = null;
 let hubCalAssignee = "all"; // filtr hub kalendáře podle řešitele
 
@@ -4639,89 +4788,90 @@ function hubFilterAssignee(evs) {
   return evs.filter(e => e.cat !== "Úkol" || e.assignee === hubCalAssignee || e.assignee === "Oba");
 }
 
+// Opakuje se úkol v daný den?
+function occursOn(t, d) {
+  const r = t.repeat; if (!r) return false;
+  if (r.freq === "daily") return true;
+  if (r.freq === "weekly") return d.getDay() === (r.weekday ?? 1);
+  if (r.freq === "monthly") return d.getDate() === (r.day || 1);
+  if (r.freq === "yearly") return d.getMonth() === (r.month ?? 0) && d.getDate() === (r.day || 1);
+  return false;
+}
+// Události pro konkrétní den (ISO) vč. rozbalených opakování
+function hubEventsForDay(iso) {
+  const evs = hubEvents().filter(e => e.iso === iso);
+  const d = parseDateIso(iso); if (!d) return hubFilterAssignee(evs);
+  (DB.tasks || []).forEach(t => { if (!t.done && t.repeat && occursOn(t, d)) evs.push({ iso, label: t.title || "", cat: "Úkol", module: "care", page: "tasks", assignee: t.assignee || "", repeat: true }); });
+  (DB.adminTasks || []).forEach(t => { if (!t.done && t.repeat && occursOn(t, d)) evs.push({ iso, label: t.title || "", cat: "Úkol", module: "tasks", page: "tasks", assignee: t.assignee || "", repeat: true }); });
+  return hubFilterAssignee(evs);
+}
+
 function refreshHubCalendar() {
   const cal = document.getElementById("hubCalendar");
   if (cal) cal.innerHTML = renderHubCalendar();
 }
-function hubCalShift(delta) { hubCalMonth = new Date(hubCalMonth.getFullYear(), hubCalMonth.getMonth() + delta, 1); hubDayDetail = null; refreshHubCalendar(); }
-function hubCalToday() { const d = new Date(); hubCalMonth = new Date(d.getFullYear(), d.getMonth(), 1); hubDayDetail = d.toISOString().slice(0, 10); refreshHubCalendar(); }
+function hubCalShift(delta) { const x = new Date(hubCalWeek); x.setDate(x.getDate() + delta * 7); hubCalWeek = x; hubDayDetail = null; refreshHubCalendar(); }
+function hubCalToday() { hubCalWeek = mondayOf(new Date()); hubDayDetail = null; refreshHubCalendar(); }
 function hubShowDay(iso) { hubDayDetail = (hubDayDetail === iso) ? null : iso; refreshHubCalendar(); }
 function hubOpenEvent(module, page) { enterModule(module); if (module === "care") goto(page); }
 
 function renderHubCalendar() {
   if (!DB) return "";
-  const m = hubCalMonth, year = m.getFullYear(), month = m.getMonth();
-  const monthNames = ["Leden","Únor","Březen","Duben","Květen","Červen","Červenec","Srpen","Září","Říjen","Listopad","Prosinec"];
-  const dayNames = ["Po","Út","St","Čt","Pá","So","Ne"];
-  const firstDay = new Date(year, month, 1);
-  let startOfs = firstDay.getDay() - 1; if (startOfs < 0) startOfs = 6;
-  const daysInMonth = new Date(year, month + 1, 0).getDate();
+  const monthNames = ["ledna", "února", "března", "dubna", "května", "června", "července", "srpna", "září", "října", "listopadu", "prosince"];
+  const dayNames = ["Pondělí", "Úterý", "Středa", "Čtvrtek", "Pátek", "Sobota", "Neděle"];
+  const start = new Date(hubCalWeek);
+  const end = new Date(start); end.setDate(end.getDate() + 6);
   const today = new Date(); today.setHours(0, 0, 0, 0);
   const todayIso = today.toISOString().slice(0, 10);
+  const iso = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 
-  const byDate = {};
-  hubFilterAssignee(hubEventsExpanded(year, month)).forEach(e => {
-    (byDate[e.iso] = byDate[e.iso] || []).push(e);
-  });
-
-  let cells = "";
-  for (let i = 0; i < startOfs; i++) cells += `<div class="cal-day empty"></div>`;
-  for (let d = 1; d <= daysInMonth; d++) {
-    const iso = `${year}-${String(month + 1).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
-    const ev = byDate[iso] || [];
-    const dots = ev.slice(0, 4).map(e => `<span class="cal-dot" style="background:${HUB_EVENT_CATS[e.cat] || "var(--ink-muted)"}"></span>`).join("");
-    cells += `<div class="cal-day ${iso === todayIso ? "today" : ""} ${ev.length ? "has-event" : ""}" onclick="hubShowDay('${iso}')">
-      <div class="cal-day-num">${d}</div>
-      ${ev.length ? `<div class="cal-dots">${dots}${ev.length > 4 ? `<span class="cal-more">+${ev.length - 4}</span>` : ""}</div>` : ""}
-    </div>`;
-  }
-
-  let detail = "";
-  if (hubDayDetail) {
-    const dd = parseDateIso(hubDayDetail);
-    const dayEvents = hubFilterAssignee(hubEventsExpanded(year, month)).filter(e => e.iso === hubDayDetail);
-    const dayLabel = dd ? dd.toLocaleDateString("cs-CZ", { weekday: "long", day: "numeric", month: "long", year: "numeric" }) : hubDayDetail;
-    detail = `
-      <div class="card elev" style="margin-top:16px">
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
-          <div class="card-title" style="margin:0">${esc(dayLabel)}</div>
-          <button class="icon-btn" onclick="hubDayDetail=null; refreshHubCalendar()">✕ Zavřít</button>
+  // 7 denních bloků s výpisem událostí
+  let daysHtml = "";
+  for (let i = 0; i < 7; i++) {
+    const d = new Date(start); d.setDate(start.getDate() + i);
+    const di = iso(d);
+    const ev = hubEventsForDay(di);
+    const isToday = di === todayIso;
+    const isPast = di < todayIso;
+    daysHtml += `
+      <div class="wk-day ${isToday ? "today" : ""} ${isPast ? "past" : ""}">
+        <div class="wk-day-head">
+          <span class="wk-day-name">${dayNames[i]}</span>
+          <span class="wk-day-date">${d.getDate()}. ${monthNames[d.getMonth()]}${isToday ? " · dnes" : ""}</span>
         </div>
-        ${dayEvents.length ? dayEvents.map(e => `
-          <div class="peek-row" onclick="hubOpenEvent('${e.module}','${e.page}')">
-            <span class="peek-dot" style="background:${HUB_EVENT_CATS[e.cat] || "var(--ink-muted)"}"></span>
-            <span class="peek-title">${esc(e.label)}${e.repeat ? ' <span style="color:var(--ink-muted);font-size:11px">↻</span>' : ""}</span>
+        ${ev.length ? ev.map(e => `
+          <div class="wk-ev" onclick="hubOpenEvent('${e.module}','${e.page}')">
+            <span class="wk-dot" style="background:${HUB_EVENT_CATS[e.cat] || "var(--ink-muted)"}"></span>
+            <span class="wk-ev-txt">${esc(e.label)}${e.repeat ? ' <span style="color:var(--ink-muted);font-size:11px">↻</span>' : ""}</span>
             ${e.assignee ? assigneeBadge(e.assignee) : ""}
-            <span class="peek-meta">${esc(e.cat)} →</span>
-          </div>`).join("") : `<div class="empty" style="padding:16px">Žádné aktivity tento den</div>`}
-        <div style="font-size:11px;color:var(--ink-muted);margin-top:8px">Klikni na položku pro otevření v jejím modulu.</div>
+          </div>`).join("") : `<div class="wk-empty">—</div>`}
       </div>`;
   }
 
+  const rangeLabel = `${start.getDate()}. ${monthNames[start.getMonth()]} – ${end.getDate()}. ${monthNames[end.getMonth()]} ${end.getFullYear()}`;
   const legend = Object.keys(HUB_EVENT_CATS).map(c => `<span><span class="cal-dot" style="display:inline-block;background:${HUB_EVENT_CATS[c]}"></span> ${c}</span>`).join("");
+  const notifyBtn = (notifyState() === "granted") ? "" :
+    `<button class="btn" style="font-size:11px;padding:5px 10px" onclick="enableNotifications()">🔔 Zapnout připomínky</button>`;
 
   return `
     <div class="cal-wrap card elev">
       <div class="cal-header">
         <button class="cal-nav" onclick="hubCalShift(-1)">‹</button>
-        <div class="cal-title">📅 ${monthNames[month]} ${year} — co nás čeká</div>
-        <button class="btn" style="font-size:11px;padding:5px 10px" onclick="hubCalToday()">Dnes</button>
+        <div class="cal-title">📅 Týden ${rangeLabel} — co nás čeká</div>
+        <button class="btn" style="font-size:11px;padding:5px 10px" onclick="hubCalToday()">Tento týden</button>
         <button class="cal-nav" onclick="hubCalShift(1)">›</button>
       </div>
-      <div class="cal-grid">
-        ${dayNames.map(d => `<div class="cal-dayname">${d}</div>`).join("")}
-        ${cells}
-      </div>
-      <div style="display:flex;gap:6px;align-items:center;margin-top:12px;flex-wrap:wrap">
+      <div class="wk-grid">${daysHtml}</div>
+      <div style="display:flex;gap:6px;align-items:center;margin-top:14px;flex-wrap:wrap">
         <span style="font-size:11px;color:var(--ink-muted);margin-right:2px">Řešitel:</span>
         ${["all", "Bára", "Michal", "Oba"].map(a => `<button class="filter-btn ${hubCalAssignee === a ? "active" : ""}" onclick="hubCalAssignee='${a}'; refreshHubCalendar()">${a === "all" ? "Vše" : a}</button>`).join("")}
+        ${notifyBtn ? `<span style="margin-left:auto">${notifyBtn}</span>` : ""}
       </div>
-      <div style="display:flex;gap:18px;margin-top:14px;font-size:11px;color:var(--ink-muted);flex-wrap:wrap">
+      <div style="display:flex;gap:18px;margin-top:12px;font-size:11px;color:var(--ink-muted);flex-wrap:wrap">
         ${legend}
-        <span style="margin-left:auto">Klik na den = náhled</span>
+        <span style="margin-left:auto">Klik na položku = otevřít v modulu</span>
       </div>
-    </div>
-    ${detail}`;
+    </div>`;
 }
 
 function enterModule(key) {
@@ -5900,5 +6050,6 @@ document.addEventListener("DOMContentLoaded", () => {
 
 </script>
 <div id="chartTip"></div>
+<button id="undoFab" onclick="undoLast()" style="display:none">↶ Zpět</button>
 </body>
 </html>
