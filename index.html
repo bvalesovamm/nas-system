@@ -3605,13 +3605,13 @@ function renderExercise() {
   const types = getExerciseTypes();
   const trendSel = exerciseTrendType || (types[0] && types[0].name) || "";
 
-  const detailPanel = exerciseDetailDate ? renderExerciseDayDetail(exerciseDetailDate, log) : "";
+  const detailPanel = renderExerciseDayDetail(exerciseDetailDate || isoLocal(), log);
 
   return `
     <div class="page-header">
       <div>
         <div class="page-title">Cvičení – tracker</div>
-        <div class="page-subtitle">Heatmap 90 dnů · ${log.length} záznamů · ${types.length} typů cviků</div>
+        <div class="page-subtitle">${log.length} záznamů · ${types.length} typů cviků</div>
       </div>
       <div class="page-actions">
         <button class="btn primary" onclick="addExerciseToday()">+ Záznam pro dnešek</button>
@@ -3623,21 +3623,6 @@ function renderExercise() {
       <div class="tile"><div class="tile-label">Cvičil za 30 dní</div><div class="tile-value ${c30 >= 21 ? "green" : c30 >= 12 ? "yellow" : "red"}">${c30}</div><div class="tile-sub">z 30 (${Math.round(c30 / 30 * 100)}%)</div></div>
       <div class="tile"><div class="tile-label">Streak (po sobě)</div><div class="tile-value ${streak >= 3 ? "green" : ""}">${streak} <span style="font-size:14px;color:var(--ink-muted)">dnů</span></div><div class="tile-sub">do dnes</div></div>
       <div class="tile"><div class="tile-label">Záznamů celkem</div><div class="tile-value">${log.length}</div><div class="tile-sub">v trackeru</div></div>
-    </div>
-
-    <div class="section">
-      <div class="section-title">📊 Heatmap – posledních 90 dnů <div class="section-title-line"></div></div>
-      <div class="card elev">
-        ${renderExerciseHeatmap(days)}
-        <div style="display:flex;align-items:center;gap:16px;margin-top:14px;font-size:11px;color:var(--ink-muted)">
-          <span>Méně</span>
-          <div style="display:flex;gap:3px">
-            <div class="hm-cell hm-0" style="cursor:default"></div><div class="hm-cell hm-1" style="cursor:default"></div><div class="hm-cell hm-2" style="cursor:default"></div><div class="hm-cell hm-3" style="cursor:default"></div><div class="hm-cell hm-4" style="cursor:default"></div>
-          </div>
-          <span>Více</span>
-          <span style="margin-left:auto">Klik na den pro detail / přidání</span>
-        </div>
-      </div>
     </div>
 
     ${detailPanel}
@@ -3698,9 +3683,13 @@ function renderExerciseDayDetail(iso, log) {
   const types = getExerciseTypes();
   return `
     <div class="card elev" style="margin-top:16px">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
-        <div class="card-title" style="margin:0">${esc(dayLabel)}</div>
-        <button class="icon-btn" onclick="exerciseDetailDate=null; renderAll()">✕ Zavřít</button>
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:12px;flex-wrap:wrap">
+        <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+          <label class="ex-lbl" style="margin:0">Den záznamu</label>
+          <input type="date" value="${esc(iso)}" max="${esc(isoLocal())}" onchange="exerciseDetailDate=this.value; renderAll()" style="padding:7px 10px">
+          <span style="font-size:12.5px;color:var(--ink-soft)">${esc(dayLabel)}</span>
+        </div>
+        <button class="btn" onclick="exerciseDetailDate=isoLocal(); renderAll()">Dnes</button>
       </div>
       ${items.length ? `<div>${items.map((it, ix) => `
         <div class="peek-row" style="cursor:default">
