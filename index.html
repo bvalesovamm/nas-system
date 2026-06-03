@@ -467,11 +467,12 @@ body {
 .tdate { font-size: 12px; color: var(--ink-soft); white-space: nowrap; }
 .texp { background: var(--bg); border: 1px solid var(--line); border-radius: 999px; padding: 3px 9px; font-size: 11px; font-family: inherit; cursor: pointer; color: var(--ink-soft); white-space: nowrap; }
 .texp:hover { background: var(--line); }
-.tsubs { padding: 2px 10px 8px 40px; display: flex; flex-direction: column; gap: 2px; }
+.tsubs { padding: 4px 10px 8px 14px; margin: 0 0 6px 40px; display: flex; flex-direction: column; gap: 2px; background: var(--bg); border-radius: 0 8px 8px 0; }
 .tsub { display: flex; align-items: center; gap: 8px; padding: 5px 8px; border-radius: 7px; cursor: pointer; font-size: 13px; }
-.tsub:hover { background: var(--bg); }
-.tsub-box { width: 15px; height: 15px; flex-shrink: 0; border: 2px solid var(--ink-muted); border-radius: 4px; }
-.tsub-box.done { background: var(--green); border-color: var(--green); }
+.tsub:hover { background: var(--bg-card); }
+.tsub-box { width: 15px; height: 15px; flex-shrink: 0; border: 2px solid #b9a98f; border-radius: 4px; }
+.tsub-box.done { background: #b08968; border-color: #b08968; }
+.tsub-txt { color: var(--ink-soft); }
 .tsub-txt.done { text-decoration: line-through; color: var(--ink-muted); }
 .tsub-note { font-size: 12.5px; color: var(--ink-soft); font-style: italic; }
 @media (max-width: 760px) {
@@ -2755,18 +2756,18 @@ function renderTaskTable(cats, byCat, list, store) {
       const expanded = !!taskExpanded[key];
       let subRows = "";
       if (expanded && subs.length) {
-        subRows = `<div class="tsubs">` + subs.map((s, si) => `
+        subRows = `<div class="tsubs" style="border-left:2px solid ${col.bg}">` + subs.map((s, si) => `
           <div class="tsub" onclick="toggleSubtask('${store}',${idx},${si})">
             <span class="tsub-box ${s.done ? 'done' : ''}"></span>
             <span class="tsub-txt ${s.done ? 'done' : ''}">${esc(s.text)}</span>
           </div>`).join("") + `</div>`;
       } else if (expanded && t.contact) {
-        subRows = `<div class="tsubs"><div class="tsub-note">${esc(t.contact)}</div></div>`;
+        subRows = `<div class="tsubs" style="border-left:2px solid ${col.bg}"><div class="tsub-note">${esc(t.contact)}</div></div>`;
       }
       return `
-        <div class="trow">
+        <div class="trow" style="border-left:3px solid ${col.c}">
           <span class="tcheck ${isDone ? 'done' : ''}" onclick="toggleTask('${store}',${idx})" title="Hotovo / aktivní"></span>
-          <span class="ttitle" onclick="editTask('${store}',${idx})">${esc(t.title || "")}${sub ? ` <span class="tag neutral">${esc(sub)}</span>` : ""}</span>
+          <span class="ttitle" style="color:${col.c};font-weight:600" onclick="editTask('${store}',${idx})">${esc(t.title || "")}${sub ? ` <span class="tag neutral">${esc(sub)}</span>` : ""}</span>
           <span class="tmeta">
             ${dateLbl ? `<span class="tdate">📆 ${esc(dateLbl)}${t.dueTime ? " " + esc(t.dueTime) : ""}</span>` : ""}
             ${t.remindAt ? `<span class="tag ${t.notified ? 'neutral' : 'yellow'}">🔔${t.notified ? " ✓" : ""}</span>` : ""}
