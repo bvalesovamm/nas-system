@@ -1853,7 +1853,7 @@ function exportData() {
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;
-  a.download = `plan_pece_martin_zaloha_${new Date().toISOString().slice(0, 10)}.json`;
+  a.download = `plan_pece_martin_zaloha_${isoLocal()}.json`;
   a.click();
   URL.revokeObjectURL(url);
 }
@@ -1981,6 +1981,9 @@ $("#modalBg").addEventListener("click", e => { if (e.target.id === "modalBg") cl
 // HELPER UTILS — výpočty z dat
 // ============================================================
 
+// Lokální ISO datum (YYYY-MM-DD) BEZ převodu na UTC — jinak v UTC+2 padá „dnešek" o den zpět
+function isoLocal(d) { d = d || new Date(); return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0"); }
+
 function parseDateIso(s) {
   if (!s) return null;
   // Try ISO date YYYY-MM-DD
@@ -2034,7 +2037,7 @@ function dashStats() {
   const last30 = [];
   for (let i = 0; i < 30; i++) {
     const d = new Date(today); d.setDate(d.getDate() - i);
-    const ds = d.toISOString().slice(0,10);
+    const ds = isoLocal(d);
     const entry = log.find(e => e.date === ds);
     if (i < 7) last7.push(entry);
     last30.push(entry);
@@ -2267,7 +2270,7 @@ function applyTaskForm(t, data) {
   const remindAt = (out.dueDate && out.dueTime) ? (out.dueDate + "T" + out.dueTime) : "";
   if (remindAt !== (t.remindAt || "")) out.notified = false;
   out.remindAt = remindAt;
-  if (done && !out.completedDate) out.completedDate = new Date().toISOString().slice(0, 10);
+  if (done && !out.completedDate) out.completedDate = isoLocal();
   if (!done) out.completedDate = "";
   return out;
 }
@@ -2277,7 +2280,7 @@ function toggleTask(store, i) {
   const t = list[i];
   t.done = !t.done;
   t.status = t.done ? "Hotovo" : "Otevřeno";
-  if (t.done && !t.completedDate) t.completedDate = new Date().toISOString().slice(0, 10);
+  if (t.done && !t.completedDate) t.completedDate = isoLocal();
   if (!t.done) t.completedDate = "";
   save();
   renderAll();
@@ -2437,7 +2440,7 @@ function importTasksFromJson() {
 function maybeDailySnapshot() {
   if (!DB) return;
   if (!Array.isArray(snapshots)) snapshots = [];
-  const today = new Date().toISOString().slice(0, 10);
+  const today = isoLocal();
   if (snapshots.some(s => s.date === today)) return; // dnešní snímek už existuje
   // objemná historická data energií do snímku nedáváme (kvůli limitu velikosti); obnova přes Import
   const slim = JSON.parse(JSON.stringify(DB));
@@ -3312,7 +3315,7 @@ function renderCalendarWidget() {
   const daysInMonth = new Date(year, month + 1, 0).getDate();
   
   const today = new Date(); today.setHours(0,0,0,0);
-  const todayIso = today.toISOString().slice(0,10);
+  const todayIso = isoLocal(today);
   
   // Collect events by date
   const eventsByDate = {};
@@ -3423,7 +3426,7 @@ function calMonthShift(delta) {
 function calToday() {
   const d = new Date();
   calMonth = new Date(d.getFullYear(), d.getMonth(), 1);
-  openDayDetail = d.toISOString().slice(0,10);
+  openDayDetail = isoLocal(d);
   renderAll();
 }
 
@@ -3587,7 +3590,7 @@ function renderExercise() {
   const days = [];
   for (let i = 90; i >= 0; i--) {
     const d = new Date(today); d.setDate(d.getDate() - i);
-    const iso = d.toISOString().slice(0, 10);
+    const iso = isoLocal(d);
     const entry = log.find(e => e.date === iso);
     const n = entry ? entryItems(entry).length : 0;
     let intensity = 0;
@@ -3856,7 +3859,7 @@ function renderExerciseTrend(log, typeName) {
 }
 
 function addExerciseToday() {
-  exerciseDetailDate = new Date().toISOString().slice(0, 10);
+  exerciseDetailDate = isoLocal();
   renderAll();
 }
 
@@ -4228,7 +4231,7 @@ function editMeasurement(i) {
 
 function addMeasurement() {
   openModal("Nové měření", [
-    { key: "date", label: "Datum (YYYY-MM-DD)", value: new Date().toISOString().slice(0, 10) },
+    { key: "date", label: "Datum (YYYY-MM-DD)", value: isoLocal() },
     { key: "height", label: "Výška (cm)", value: "" },
     { key: "weight", label: "Váha (kg)", value: "" },
     { key: "bmi", label: "BMI (volitelné, dopočítá se)", value: "" },
@@ -4822,7 +4825,7 @@ function renderHubCalendar() {
   const start = new Date(hubCalWeek);
   const end = new Date(start); end.setDate(end.getDate() + 6);
   const today = new Date(); today.setHours(0, 0, 0, 0);
-  const todayIso = today.toISOString().slice(0, 10);
+  const todayIso = isoLocal(today);
   const iso = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 
   // 7 denních bloků s výpisem událostí
@@ -5346,7 +5349,7 @@ function energyDashboard() {
 
 function addEnergyMeasurement() {
   openModal("Nové měření", [
-    { key: "date", label: "Datum", type: "date", value: new Date().toISOString().slice(0, 10) },
+    { key: "date", label: "Datum", type: "date", value: isoLocal() },
     { key: "heat", label: "Teplo (m³)", value: "" },
     { key: "water", label: "Voda (m³)", value: "" },
     { key: "temp", label: "Venkovní teplota (°C)", value: "" }
@@ -5515,7 +5518,7 @@ function vyvojBody() {
 function vyvojDash() {
   const rows = predRows();
   if (!rows.length) return `<div class="empty">Zatím žádné záznamy — naimportuj JSON nebo přidej „+ Záznam“.</div>`;
-  const today = new Date().toISOString().slice(0, 10);
+  const today = isoLocal();
   const past = rows.filter(r => r.date <= today);
   const nowBal = past.length ? past[past.length - 1].bal : rows[0].bal;
   let min = rows[0]; rows.forEach(r => { if (r.bal < min.bal) min = r; });
@@ -5568,7 +5571,7 @@ function vyvojData() {
 function predFields(e) {
   e = e || {};
   return [
-    { key: "date", label: "Datum", type: "date", value: e.date || new Date().toISOString().slice(0, 10) },
+    { key: "date", label: "Datum", type: "date", value: e.date || isoLocal() },
     { key: "who", label: "Kdo / co", value: e.who || "" },
     { key: "detail", label: "Detail (volitelné)", value: e.detail || "" },
     { key: "mzdaM", label: "Mzda Michal (+, lze i „5000+3000“)", value: e.mzdaM != null ? String(e.mzdaM) : "" },
@@ -5741,7 +5744,7 @@ function vyuctBody() {
 function vyuctFields(v) {
   v = v || {};
   return [
-    { key: "month", label: "Měsíc (YYYY-MM)", value: v.month || new Date().toISOString().slice(0, 7) },
+    { key: "month", label: "Měsíc (YYYY-MM)", value: v.month || isoLocal().slice(0, 7) },
     { key: "bP", label: "Příjmy běžné (Kč)", value: v.bP != null ? String(v.bP) : "" },
     { key: "cP", label: "Příjmy celkové (Kč)", value: v.cP != null ? String(v.cP) : "" },
     { key: "dum", label: "Dům / jednorázové (Kč)", value: v.dum != null ? String(v.dum) : "" }
@@ -5894,7 +5897,7 @@ function editLoan(li) {
 function addLoanPayment(li) {
   const l = finObj().loans[li]; if (!l) return;
   openModal("Splátka — " + (l.name || "úvěr"), [
-    { key: "month", label: "Měsíc", type: "date", value: new Date().toISOString().slice(0, 10) },
+    { key: "month", label: "Měsíc", type: "date", value: isoLocal() },
     { key: "m", label: "Michal (Kč)", value: "" },
     { key: "b", label: "Bára (Kč)", value: "" }
   ], d => { if (!l.schedule) l.schedule = []; l.schedule.push({ month: d.month, m: evalExpr(d.m), b: evalExpr(d.b) }); });
