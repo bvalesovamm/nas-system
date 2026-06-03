@@ -1910,6 +1910,8 @@ function openModal(title, fields, onSave) {
       return `<div class="field"><label>${esc(f.label)}</label><input type="date" data-key="${f.key}" value="${val}"></div>`;
     } else if (f.type === "time") {
       return `<div class="field"><label>${esc(f.label)}</label><input type="time" data-key="${f.key}" value="${val}"></div>`;
+    } else if (f.type === "month") {
+      return `<div class="field"><label>${esc(f.label)}</label><input type="month" data-key="${f.key}" value="${val}"></div>`;
     } else if (f.type === "subtasks") {
       modalState.subtasks = (Array.isArray(f.value) ? f.value : []).map(s => ({ text: s.text || "", done: !!s.done }));
       return `<div class="field"><label>${esc(f.label)}</label><div id="subtaskEditor">${renderSubtaskEditor()}</div><button type="button" class="btn" style="margin-top:8px" onclick="modalAddSubtask()">+ Přidat položku</button></div>`;
@@ -1983,6 +1985,8 @@ $("#modalBg").addEventListener("click", e => { if (e.target.id === "modalBg") cl
 
 // Lokální ISO datum (YYYY-MM-DD) BEZ převodu na UTC — jinak v UTC+2 padá „dnešek" o den zpět
 function isoLocal(d) { d = d || new Date(); return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0"); }
+// Číslo s českou desetinnou čárkou i tečkou (např. „129,7" → 129.7); prázdné → null
+function numCZ(v) { if (v == null || String(v).trim() === "") return null; const n = parseFloat(String(v).replace(/\s/g, "").replace(",", ".")); return isNaN(n) ? null : n; }
 
 function parseDateIso(s) {
   if (!s) return null;
@@ -2975,7 +2979,7 @@ function renderExaminations() {
           ${items.map(e => {
             const i = DB.examinations.indexOf(e);
             return `<div class="kanban-card">
-              <div class="kc-date">${esc(e.date)}</div>
+              <div class="kc-date">${esc(fmtMonthCz(e.date))}</div>
               <div class="kc-type">${esc(e.type)}</div>
               <div class="kc-concl">${esc(e.conclusion)}</div>
               <div class="kc-actions">
@@ -2991,17 +2995,32 @@ function renderExaminations() {
 }
 
 function parseDate(d) {
-  // "4/2022" -> 2022-04, "11/2025" -> 2025-11
+  // "4/2022" -> 2022-04, "11/2025" -> 2025-11, "2026-05" / "2026-05-21" -> ISO
+  const iso = String(d).match(/^(\d{4})-(\d{1,2})(?:-(\d{1,2}))?/);
+  if (iso) return new Date(parseInt(iso[1]), parseInt(iso[2]) - 1, iso[3] ? parseInt(iso[3]) : 1);
   const m = String(d).match(/(\d{1,2})\/(\d{4})/);
   if (m) return new Date(parseInt(m[2]), parseInt(m[1]) - 1);
   return new Date(0);
+}
+// Zobrazení měsíce: "2026-05" -> "05/2026", "MM/RRRR" nechá být
+function fmtMonthCz(d) {
+  const iso = String(d || "").match(/^(\d{4})-(\d{2})/);
+  if (iso) return iso[2] + "/" + iso[1];
+  return String(d || "");
+}
+
+function mmYyyyToMonth(s) {
+  if (!s) return "";
+  const iso = String(s).match(/^(\d{4})-(\d{2})/); if (iso) return iso[1] + "-" + iso[2];
+  const m = String(s).match(/^(\d{1,2})\s*\/\s*(\d{4})$/); if (m) return m[2] + "-" + String(m[1]).padStart(2, "0");
+  return ""; // neznámý formát -> prázdné (uživatel vybere)
 }
 
 function editExam(i) {
   const e = DB.examinations[i];
   const domains = [...new Set(DB.examinations.map(x => x.domain))].sort();
   openModal("Upravit vyšetření", [
-    { key: "date", label: "Datum (MM/RRRR)", value: e.date },
+    { key: "date", label: "Datum (měsíc)", type: "month", value: mmYyyyToMonth(e.date) },
     { key: "type", label: "Typ vyšetření", value: e.type },
     { key: "conclusion", label: "Závěr", type: "textarea", value: e.conclusion },
     { key: "domain", label: "Oblast / kategorie", type: "datalist", options: domains, placeholder: "vyber existující nebo napiš novou", value: e.domain }
@@ -3010,7 +3029,7 @@ function editExam(i) {
 function addExam() {
   const domains = [...new Set(DB.examinations.map(e => e.domain))].sort();
   openModal("Nové vyšetření", [
-    { key: "date", label: "Datum (MM/RRRR)", value: "" },
+    { key: "date", label: "Datum (měsíc)", type: "month", value: "" },
     { key: "type", label: "Typ vyšetření", value: "" },
     { key: "conclusion", label: "Závěr", type: "textarea", value: "" },
     { key: "domain", label: "Oblast / kategorie", type: "datalist", options: domains, placeholder: "vyber existující nebo napiš novou", value: "" }
@@ -3441,11 +3460,11 @@ function editAppt(i) {
     { key: "ambulance", label: "Ambulance / odborník", value: a.ambulance || '' },
     { key: "kde", label: "Kde", value: a.kde || '' },
     { key: "lekar", label: "Jméno lékaře", value: a.lekar || '' },
-    { key: "posledniDate", label: "Poslední (YYYY-MM-DD)", value: a.posledniDate || '' },
-    { key: "budouciDate", label: "Budoucí (YYYY-MM-DD)", value: a.budouciDate || '' },
+    { key: "posledniDate", label: "Poslední kontrola", type: "date", value: a.posledniDate || '' },
+    { key: "budouciDate", label: "Budoucí kontrola", type: "date", value: a.budouciDate || '' },
     { key: "budouciText", label: "Budoucí (text, např. OBJEDNAT)", value: a.budouciText || '' },
     { key: "cas", label: "Čas (HH:MM)", value: a.cas || '' },
-    { key: "terminVolaniDate", label: "Termín volání (YYYY-MM-DD)", value: a.terminVolaniDate || '' },
+    { key: "terminVolaniDate", label: "Termín volání", type: "date", value: a.terminVolaniDate || '' },
     { key: "frekvence", label: "Frekvence", value: a.frekvence || '' },
     { key: "telefon", label: "Telefon", value: a.telefon || '' },
     { key: "email", label: "E-mail", value: a.email || '' },
@@ -3460,11 +3479,11 @@ function addApptForDate(isoDate) {
     { key: "ambulance", label: "Ambulance / odborník", value: '' },
     { key: "kde", label: "Kde", value: '' },
     { key: "lekar", label: "Jméno lékaře", value: '' },
-    { key: "posledniDate", label: "Poslední (YYYY-MM-DD)", value: '' },
-    { key: "budouciDate", label: "Budoucí (YYYY-MM-DD)", value: isoDate || '' },
+    { key: "posledniDate", label: "Poslední kontrola", type: "date", value: '' },
+    { key: "budouciDate", label: "Budoucí kontrola", type: "date", value: isoDate || '' },
     { key: "budouciText", label: "Budoucí (text, např. OBJEDNAT)", value: '' },
     { key: "cas", label: "Čas (HH:MM)", value: '' },
-    { key: "terminVolaniDate", label: "Termín volání (YYYY-MM-DD)", value: '' },
+    { key: "terminVolaniDate", label: "Termín volání", type: "date", value: '' },
     { key: "frekvence", label: "Frekvence", value: '' },
     { key: "telefon", label: "Telefon", value: '' },
     { key: "email", label: "E-mail", value: '' },
@@ -3603,8 +3622,10 @@ function renderExercise() {
   for (let i = days.length - 1; i >= 0; i--) { if (dayDidExercise(days[i].entry)) streak++; else break; }
 
   const types = getExerciseTypes();
-  const metrics = exerciseMetrics(log);
-  const metricSel = (exerciseTrendType && metrics.some(m => m.key === exerciseTrendType)) ? exerciseTrendType : (metrics[0] && metrics[0].key) || "";
+  const metrics = exerciseMetrics(log).map(m => Object.assign({}, m, { days: exerciseDailyPoints(log, m.name, m.unit).length }));
+  // default = metrika s nejvíc dny dat (ať se rovnou vykreslí graf), pak abecedně
+  const metricsByData = metrics.slice().sort((a, b) => b.days - a.days || (a.name + a.unit).localeCompare(b.name + b.unit, "cs"));
+  const metricSel = (exerciseTrendType && metrics.some(m => m.key === exerciseTrendType)) ? exerciseTrendType : (metricsByData[0] && metricsByData[0].key) || "";
   const selMetric = metrics.find(m => m.key === metricSel);
 
   const detailPanel = renderExerciseDayDetail(exerciseDetailDate || isoLocal(), log);
@@ -3652,11 +3673,11 @@ function renderExercise() {
         <div style="margin-bottom:14px;display:flex;align-items:center;gap:8px;flex-wrap:wrap">
           <span style="font-size:12px;color:var(--ink-muted)">Metrika:</span>
           <select onchange="exerciseTrendType=this.value; renderAll()" style="padding:6px 10px">
-            ${metrics.map(m => `<option value="${esc(m.key)}" ${m.key === metricSel ? "selected" : ""}>${esc(m.name)} · ${esc(m.unit)}</option>`).join("")}
+            ${metrics.map(m => `<option value="${esc(m.key)}" ${m.key === metricSel ? "selected" : ""}>${esc(m.name)} · ${esc(m.unit)} (${m.days} ${m.days === 1 ? "den" : "dnů"})</option>`).join("")}
           </select>
         </div>
         <div style="font-size:12px;color:var(--ink-muted);margin-bottom:6px">Po dnech (osa Y = ${esc(selMetric ? selMetric.unit : "")}, osa X = datum)</div>
-        ${exLineChart(exerciseDailyPoints(log, selMetric.name, selMetric.unit), selMetric.unit, { xTitle: "datum", empty: "Pro graf jsou potřeba aspoň 2 dny s touto metrikou." })}
+        ${exLineChart(exerciseDailyPoints(log, selMetric.name, selMetric.unit), selMetric.unit, { xTitle: "datum", empty: "Tato metrika má zatím " + selMetric.days + (selMetric.days === 1 ? " den" : " dny/dnů") + " — pro graf jsou potřeba aspoň 2 dny. Vyber jinou metriku nebo přidej další den." })}
         ` : `<div class="empty" style="padding:20px">Zatím žádná číselná metrika. Přidej cvik s hodnotou (sekundy / opakování…).</div>`}
       </div>
     </div>
@@ -3870,7 +3891,7 @@ function renderExerciseHeatmap(days) {
 function exerciseMetrics(log) {
   const seen = new Map();
   (log || []).forEach(e => entryItems(e).forEach(it => {
-    if (!isNaN(parseFloat(it.value))) {
+    if (numCZ(it.value) != null) {
       const key = (it.name || "") + "||" + (it.unit || "");
       if (!seen.has(key)) seen.set(key, { key, name: it.name || "", unit: it.unit || "" });
     }
@@ -3881,7 +3902,7 @@ function exerciseMetrics(log) {
 function exerciseDailyPoints(log, name, unit) {
   const byDay = {};
   (log || []).forEach(e => entryItems(e).forEach(it => {
-    if (it.name === name && (it.unit || "") === unit) { const v = parseFloat(it.value); if (!isNaN(v)) byDay[e.date] = (byDay[e.date] || 0) + v; }
+    if (it.name === name && (it.unit || "") === unit) { const v = numCZ(it.value); if (v != null) byDay[e.date] = (byDay[e.date] || 0) + v; }
   }));
   return Object.keys(byDay).sort().map(d => ({ x: d, y: byDay[d] }));
 }
@@ -3890,7 +3911,7 @@ function exerciseWeeklyPoints(log, name, unit) {
   const byWeek = {};
   (log || []).forEach(e => {
     const d = parseDateIso(e.date); if (!d) return; const wk = isoLocal(mondayOf(d));
-    entryItems(e).forEach(it => { if (it.name === name && (it.unit || "") === unit) { const v = parseFloat(it.value); if (!isNaN(v)) { byWeek[wk] = byWeek[wk] || { sum: 0, days: {} }; byWeek[wk].sum += v; byWeek[wk].days[e.date] = 1; } } });
+    entryItems(e).forEach(it => { if (it.name === name && (it.unit || "") === unit) { const v = numCZ(it.value); if (v != null) { byWeek[wk] = byWeek[wk] || { sum: 0, days: {} }; byWeek[wk].sum += v; byWeek[wk].days[e.date] = 1; } } });
   });
   return Object.keys(byWeek).sort().map(wk => ({ x: wk, y: byWeek[wk].sum, days: Object.keys(byWeek[wk].days).length }));
 }
@@ -3926,7 +3947,7 @@ function renderExerciseTrend(log, typeName) {
   const pts = [];
   log.slice().sort((a, b) => a.date.localeCompare(b.date)).forEach(e => {
     const it = entryItems(e).find(x => x.name === typeName);
-    if (it) { const v = parseFloat(it.value); if (!isNaN(v)) pts.push({ x: e.date, y: v }); }
+    if (it) { const v = numCZ(it.value); if (v != null) pts.push({ x: e.date, y: v }); }
   });
   if (pts.length < 2) return '<div class="empty" style="padding:20px">Pro graf jsou potřeba aspoň 2 záznamy tohoto cviku s číselnou hodnotou.</div>';
   const W = 600, H = 200, padL = 40, padR = 20, padT = 20, padB = 30;
@@ -4300,7 +4321,7 @@ function renderWHOPercentileChart(ms, metric) {
 function editMeasurement(i) {
   const r = DB.measurements[i];
   openModal("Upravit měření", [
-    { key: "date", label: "Datum (YYYY-MM-DD)", value: r.date || "" },
+    { key: "date", label: "Datum", type: "date", value: r.date || "" },
     { key: "height", label: "Výška (cm)", value: r.height != null ? String(r.height) : "" },
     { key: "weight", label: "Váha (kg)", value: r.weight != null ? String(r.weight) : "" },
     { key: "bmi", label: "BMI (volitelné, dopočítá se)", value: r.bmi != null ? String(r.bmi) : "" },
@@ -4309,9 +4330,9 @@ function editMeasurement(i) {
     DB.measurements[i] = {
       ...r,
       date: data.date,
-      height: data.height ? parseFloat(data.height) : null,
-      weight: data.weight ? parseFloat(data.weight) : null,
-      bmi: data.bmi ? parseFloat(data.bmi) : (data.height && data.weight ? parseFloat(data.weight) / ((parseFloat(data.height)/100)**2) : null),
+      height: numCZ(data.height),
+      weight: numCZ(data.weight),
+      bmi: (numCZ(data.bmi) != null) ? numCZ(data.bmi) : (numCZ(data.height) && numCZ(data.weight) ? numCZ(data.weight) / ((numCZ(data.height) / 100) ** 2) : null),
       note: data.note
     };
   });
@@ -4319,7 +4340,7 @@ function editMeasurement(i) {
 
 function addMeasurement() {
   openModal("Nové měření", [
-    { key: "date", label: "Datum (YYYY-MM-DD)", value: isoLocal() },
+    { key: "date", label: "Datum", type: "date", value: isoLocal() },
     { key: "height", label: "Výška (cm)", value: "" },
     { key: "weight", label: "Váha (kg)", value: "" },
     { key: "bmi", label: "BMI (volitelné, dopočítá se)", value: "" },
@@ -4327,9 +4348,9 @@ function addMeasurement() {
   ], data => {
     DB.measurements.push({
       date: data.date,
-      height: data.height ? parseFloat(data.height) : null,
-      weight: data.weight ? parseFloat(data.weight) : null,
-      bmi: data.bmi ? parseFloat(data.bmi) : (data.height && data.weight ? parseFloat(data.weight) / ((parseFloat(data.height)/100)**2) : null),
+      height: numCZ(data.height),
+      weight: numCZ(data.weight),
+      bmi: (numCZ(data.bmi) != null) ? numCZ(data.bmi) : (numCZ(data.height) && numCZ(data.weight) ? numCZ(data.weight) / ((numCZ(data.height) / 100) ** 2) : null),
       note: data.note
     });
   });
@@ -5832,7 +5853,7 @@ function vyuctBody() {
 function vyuctFields(v) {
   v = v || {};
   return [
-    { key: "month", label: "Měsíc (YYYY-MM)", value: v.month || isoLocal().slice(0, 7) },
+    { key: "month", label: "Měsíc", type: "month", value: v.month || isoLocal().slice(0, 7) },
     { key: "bP", label: "Příjmy běžné (Kč)", value: v.bP != null ? String(v.bP) : "" },
     { key: "cP", label: "Příjmy celkové (Kč)", value: v.cP != null ? String(v.cP) : "" },
     { key: "dum", label: "Dům / jednorázové (Kč)", value: v.dum != null ? String(v.dum) : "" }
@@ -5947,7 +5968,7 @@ function platbaFields(p) {
   return [
     { key: "what", label: "Co", value: p.what || "" },
     { key: "category", label: "Kategorie", type: "datalist", options: cats, value: p.category || "" },
-    { key: "month", label: "Měsíc", type: "date", value: p.month || "" },
+    { key: "month", label: "Měsíc", type: "month", value: (p.month || "").slice(0, 7) },
     { key: "amountB", label: "Zaplatila Bára (Kč)", value: p.amountB != null ? String(p.amountB) : "" },
     { key: "amountM", label: "Zaplatil Michal (Kč)", value: p.amountM != null ? String(p.amountM) : "" }
   ];
@@ -5985,7 +6006,7 @@ function editLoan(li) {
 function addLoanPayment(li) {
   const l = finObj().loans[li]; if (!l) return;
   openModal("Splátka — " + (l.name || "úvěr"), [
-    { key: "month", label: "Měsíc", type: "date", value: isoLocal() },
+    { key: "month", label: "Měsíc", type: "month", value: isoLocal().slice(0, 7) },
     { key: "m", label: "Michal (Kč)", value: "" },
     { key: "b", label: "Bára (Kč)", value: "" }
   ], d => { if (!l.schedule) l.schedule = []; l.schedule.push({ month: d.month, m: evalExpr(d.m), b: evalExpr(d.b) }); });
