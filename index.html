@@ -2656,6 +2656,31 @@ function taskCard(t, idx, store) {
     </div>`;
 }
 
+// Splněné položky (subtasky) napříč úkoly — pro záložku Splněno
+function doneSubtasks(list) {
+  const out = [];
+  (list || []).forEach((t, ti) => (t.subtasks || []).forEach((s, si) => {
+    if (s.done) out.push({ ti, si, text: s.text || "", parent: t.title || "", cat: catParent(t.category), sub: catSub(t.category) });
+  }));
+  return out;
+}
+function doneSubRow(store, e) {
+  return `
+    <div class="item-row">
+      <div class="item-body">
+        <div class="item-title done">${esc(e.text)}</div>
+        <div class="item-meta">
+          <span class="tag neutral">${esc(e.cat)}</span>
+          ${e.sub ? `<span class="tag neutral">${esc(e.sub)}</span>` : ""}
+          ${e.parent ? `<span style="color:var(--ink-muted)">položka z: ${esc(e.parent)}</span>` : ""}
+        </div>
+      </div>
+      <div class="row-actions" style="opacity:1">
+        <button class="btn" onclick="toggleSubtask('${store}',${e.ti},${e.si})">↩ Obnovit</button>
+      </div>
+    </div>`;
+}
+
 function doneRow(t, idx, store) {
   return `
     <div class="item-row">
@@ -2683,7 +2708,8 @@ function renderTasks(store) {
   const openTasks = list.filter(t => !isDone(t) && matchA(t));
   const doneTasks = list.filter(t => isDone(t) && matchA(t));
   const openCnt = list.filter(t => !isDone(t)).length;
-  const doneCnt = list.filter(t => isDone(t)).length;
+  const doneSubs = doneSubtasks(list);
+  const doneCnt = list.filter(t => isDone(t)).length + doneSubs.length;
 
   const assigneeBtns = ["all", "Bára", "Michal", "Oba"].map(a =>
     `<button class="filter-btn ${af === a ? 'active' : ''}" onclick="taskAssigneeFilter='${a}'; renderAll()">${a === 'all' ? 'Vše' : a}</button>`).join("");
@@ -2715,7 +2741,9 @@ function renderTasks(store) {
   if (taskView === "done") {
     return head + `
       <div class="list-wrap">
-        ${doneTasks.length ? doneTasks.map(t => doneRow(t, list.indexOf(t), store)).join("") : `<div class="empty">Žádné splněné úkoly</div>`}
+        ${doneTasks.map(t => doneRow(t, list.indexOf(t), store)).join("")}
+        ${doneSubs.map(e => doneSubRow(store, e)).join("")}
+        ${(!doneTasks.length && !doneSubs.length) ? `<div class="empty">Žádné splněné úkoly</div>` : ""}
       </div>`;
   }
 
@@ -2756,11 +2784,12 @@ function renderTaskTable(cats, byCat, list, store) {
       const expanded = taskExpanded[key] !== false; // defaultně rozbaleno (položky vidět „ven")
       let subRows = "";
       if (expanded && subs.length) {
-        subRows = `<div class="tsubs" style="border-left:2px solid ${col.bg}">` + subs.map((s, si) => `
+        const openSubs = subs.map((s, si) => ({ s, si })).filter(o => !o.s.done);
+        subRows = `<div class="tsubs" style="border-left:2px solid ${col.bg}">` + (openSubs.length ? openSubs.map(({ s, si }) => `
           <div class="tsub" onclick="toggleSubtask('${store}',${idx},${si})">
-            <span class="tsub-box ${s.done ? 'done' : ''}"></span>
-            <span class="tsub-txt ${s.done ? 'done' : ''}">${esc(s.text)}</span>
-          </div>`).join("") + `</div>`;
+            <span class="tsub-box"></span>
+            <span class="tsub-txt">${esc(s.text)}</span>
+          </div>`).join("") : `<div class="tsub-note">Vše hotovo ✓ (splněné položky v záložce Splněno)</div>`) + `</div>`;
       } else if (expanded && t.contact) {
         subRows = `<div class="tsubs" style="border-left:2px solid ${col.bg}"><div class="tsub-note">${esc(t.contact)}</div></div>`;
       }
