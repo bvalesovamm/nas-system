@@ -453,6 +453,10 @@ body {
   gap: 4px;
 }
 /* Týdenní agenda na hubu */
+.done-toolbar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin: 4px 0 14px; padding: 10px 12px; background: var(--bg-card); border: 1px solid var(--line); border-radius: 10px; }
+.done-selall { display: inline-flex; align-items: center; gap: 7px; font-size: 13px; color: var(--ink-soft); cursor: pointer; }
+.done-sel, .house-sel { width: 18px; height: 18px; flex-shrink: 0; cursor: pointer; accent-color: var(--accent); }
+.done-toolbar .btn { font-size: 13px; padding: 7px 12px; }
 .ttbl { display: flex; flex-direction: column; gap: 18px; }
 .tcat { background: var(--bg-card); border: 1px solid var(--line); border-left-width: 4px; border-radius: 12px; padding: 6px 6px 8px; }
 .tcat-head { font-size: 13px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; padding: 8px 10px 6px; display: flex; align-items: center; gap: 8px; }
@@ -2667,6 +2671,7 @@ function doneSubtasks(list) {
 function doneSubRow(store, e) {
   return `
     <div class="item-row">
+      <input type="checkbox" class="done-sel" data-kind="sub" data-ti="${e.ti}" data-si="${e.si}" title="Vybrat ke smazání">
       <div class="item-body">
         <div class="item-title done">${esc(e.text)}</div>
         <div class="item-meta">
@@ -2677,17 +2682,50 @@ function doneSubRow(store, e) {
       </div>
       <div class="row-actions" style="opacity:1">
         <button class="btn" onclick="toggleSubtask('${store}',${e.ti},${e.si})">↩ Obnovit</button>
+        <button class="icon-btn" onclick="deleteDoneSub('${store}',${e.ti},${e.si})" title="Smazat natrvalo">✕</button>
       </div>
     </div>`;
+}
+function deleteDoneSub(store, ti, si) {
+  const t = taskList(store)[ti]; if (!t || !t.subtasks || !t.subtasks[si]) return;
+  t.subtasks.splice(si, 1); save(); renderAll();
+}
+function deleteSelectedDone(store) {
+  const boxes = document.querySelectorAll(".done-sel:checked");
+  if (!boxes.length) { alert("Nic nevybráno — zaškrtni položky, které chceš smazat."); return; }
+  if (!confirm("Smazat " + boxes.length + " vybraných splněných? (lze vrátit přes ↶ Zpět)")) return;
+  const L = taskList(store);
+  const taskRefs = [], subRefs = [];
+  boxes.forEach(b => {
+    const ti = +b.dataset.ti;
+    if (b.dataset.kind === "task") { if (L[ti]) taskRefs.push(L[ti]); }
+    else { const t = L[ti]; if (t && t.subtasks && t.subtasks[+b.dataset.si]) subRefs.push({ t, s: t.subtasks[+b.dataset.si] }); }
+  });
+  subRefs.forEach(r => { const i = r.t.subtasks.indexOf(r.s); if (i >= 0) r.t.subtasks.splice(i, 1); });
+  taskRefs.forEach(t => { const i = L.indexOf(t); if (i >= 0) L.splice(i, 1); });
+  save(); renderAll();
+}
+function deleteAllDone(store) {
+  const L = taskList(store);
+  const isD = t => t.done || t.status === "Hotovo" || t.status === "Splněno";
+  const nTasks = L.filter(isD).length;
+  let nSubs = 0; L.forEach(t => (t.subtasks || []).forEach(s => { if (s.done) nSubs++; }));
+  if (!nTasks && !nSubs) { alert("Žádné splněné k smazání."); return; }
+  if (!confirm("Smazat všechny splněné úkoly i položky (" + (nTasks + nSubs) + ")? (lze vrátit přes ↶ Zpět)")) return;
+  L.forEach(t => { if (t.subtasks) t.subtasks = t.subtasks.filter(s => !s.done); });
+  for (let i = L.length - 1; i >= 0; i--) if (isD(L[i])) L.splice(i, 1);
+  save(); renderAll();
 }
 
 function doneRow(t, idx, store) {
   return `
     <div class="item-row">
+      <input type="checkbox" class="done-sel" data-kind="task" data-ti="${idx}" title="Vybrat ke smazání">
       <div class="item-body">
         <div class="item-title done">${esc(t.title || '')}</div>
         <div class="item-meta">
-          ${t.category ? `<span class="tag neutral">${esc(t.category)}</span>` : ''}
+          ${t.category ? `<span class="tag neutral">${esc(catParent(t.category))}</span>` : ''}
+          ${catSub(t.category) ? `<span class="tag neutral">${esc(catSub(t.category))}</span>` : ''}
           ${t.completedDate ? `<span style="color:var(--ink-muted)">hotovo ${esc(t.completedDate)}</span>` : ''}
         </div>
       </div>
@@ -2739,11 +2777,17 @@ function renderTasks(store) {
     </div>`;
 
   if (taskView === "done") {
+    const hasDone = doneTasks.length || doneSubs.length;
     return head + `
+      ${hasDone ? `<div class="done-toolbar">
+        <label class="done-selall"><input type="checkbox" onchange="document.querySelectorAll('.done-sel').forEach(b=>b.checked=this.checked)"> Vybrat vše</label>
+        <button class="btn" onclick="deleteSelectedDone('${store}')">🗑 Smazat vybrané</button>
+        <button class="btn" onclick="deleteAllDone('${store}')">Smazat vše splněné</button>
+      </div>` : ""}
       <div class="list-wrap">
         ${doneTasks.map(t => doneRow(t, list.indexOf(t), store)).join("")}
         ${doneSubs.map(e => doneSubRow(store, e)).join("")}
-        ${(!doneTasks.length && !doneSubs.length) ? `<div class="empty">Žádné splněné úkoly</div>` : ""}
+        ${!hasDone ? `<div class="empty">Žádné splněné úkoly</div>` : ""}
       </div>`;
   }
 
@@ -5231,7 +5275,13 @@ function houseBody() {
       <button class="filter-btn ${houseView === 'done' ? 'active' : ''}" onclick="houseView='done'; renderAll()">Hotové · ${done.length}</button>
     </div>`;
   if (houseView === "done") {
-    return toggle + `<div class="list-wrap">${done.length ? done.map(h => houseRowDone(h, list.indexOf(h))).join("") : `<div class="empty">Žádné hotové realizace</div>`}</div>`;
+    return toggle + `
+      ${done.length ? `<div class="done-toolbar">
+        <label class="done-selall"><input type="checkbox" onchange="document.querySelectorAll('.house-sel').forEach(b=>b.checked=this.checked)"> Vybrat vše</label>
+        <button class="btn" onclick="deleteSelectedHouse()">🗑 Smazat vybrané</button>
+        <button class="btn" onclick="deleteAllHouseDone()">Smazat vše hotové</button>
+      </div>` : ""}
+      <div class="list-wrap">${done.length ? done.map(h => houseRowDone(h, list.indexOf(h))).join("") : `<div class="empty">Žádné hotové realizace</div>`}</div>`;
   }
   // kanban po skupinách (patrech/zónách)
   const byG = {};
@@ -5280,6 +5330,7 @@ function houseCard(h, idx) {
 function houseRowDone(h, idx) {
   return `
     <div class="item-row">
+      <input type="checkbox" class="house-sel" data-ti="${idx}" title="Vybrat ke smazání">
       <div class="item-body"><div class="item-title done">${esc(h.title || '')}</div>
         <div class="item-meta">${h.room ? `<span class="tag neutral">${esc(h.room)}</span>` : ''}${(+h.price) ? `<span style="color:var(--ink-muted)">${fmtCZK(h.price)}</span>` : ''}</div></div>
       <div class="row-actions" style="opacity:1">
@@ -5287,6 +5338,24 @@ function houseRowDone(h, idx) {
         <button class="icon-btn" onclick="deleteHouseWork(${idx})" title="Smazat">✕</button>
       </div>
     </div>`;
+}
+function deleteSelectedHouse() {
+  const boxes = document.querySelectorAll(".house-sel:checked");
+  if (!boxes.length) { alert("Nic nevybráno — zaškrtni realizace, které chceš smazat."); return; }
+  if (!confirm("Smazat " + boxes.length + " vybraných hotových realizací? (lze vrátit přes ↶ Zpět)")) return;
+  const L = houseList();
+  const refs = []; boxes.forEach(b => { const h = L[+b.dataset.ti]; if (h) refs.push(h); });
+  refs.forEach(h => { const i = L.indexOf(h); if (i >= 0) L.splice(i, 1); });
+  save(); renderAll();
+}
+function deleteAllHouseDone() {
+  const L = houseList();
+  const isD = h => h.done || h.status === "Hotovo";
+  const n = L.filter(isD).length;
+  if (!n) { alert("Žádné hotové k smazání."); return; }
+  if (!confirm("Smazat všechny hotové realizace (" + n + ")? (lze vrátit přes ↶ Zpět)")) return;
+  for (let i = L.length - 1; i >= 0; i--) if (isD(L[i])) L.splice(i, 1);
+  save(); renderAll();
 }
 function houseFormFields(h, isEdit) {
   h = h || {};
