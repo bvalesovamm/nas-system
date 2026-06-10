@@ -1220,6 +1220,16 @@ mark { background: var(--yellow-bg); color: var(--ink); padding: 0 2px; border-r
 .hub-tile.hidden { display: none; }
 .hub-empty { text-align: center; color: var(--ink-muted); font-size: 14px; padding: 24px; }
 
+/* ===== Hub: výsledky hledání (i podsekce) ===== */
+.hub-results { max-width: 560px; margin: 0 auto; display: flex; flex-direction: column; gap: 8px; }
+.hub-res { display: flex; align-items: center; gap: 12px; text-align: left; width: 100%; background: var(--bg-card); border: 1px solid var(--line); border-radius: var(--radius-lg); padding: 12px 14px; cursor: pointer; color: var(--ink); font-family: var(--sans); box-shadow: var(--shadow); transition: border-color .12s, transform .12s; }
+.hub-res:hover { border-color: var(--accent); transform: translateY(-1px); }
+.hub-res .res-ico { font-size: 20px; line-height: 1; }
+.hub-res .res-main { flex: 1; min-width: 0; }
+.hub-res .res-label { font-weight: 600; font-size: 14px; }
+.hub-res .res-where { font-size: 12px; color: var(--ink-muted); margin-top: 1px; }
+.hub-res .res-arrow { color: var(--ink-muted); font-size: 16px; }
+
 /* ===== Hub: hvězdička oblíbených ===== */
 .hub-tile .tile-fav { position: absolute; top: 12px; right: 12px; width: 30px; height: 30px; display: flex; align-items: center; justify-content: center; border: none; background: transparent; cursor: pointer; font-size: 17px; line-height: 1; color: var(--line-strong); border-radius: 8px; transition: color .12s, background .12s, transform .12s; z-index: 2; }
 .hub-tile .tile-fav:hover { background: var(--bg-elev); transform: scale(1.1); }
@@ -1391,6 +1401,7 @@ mark { background: var(--yellow-bg); color: var(--ink); padding: 0 2px; border-r
       <input type="text" id="hubSearch" placeholder="Hledat sekci…" oninput="hubSearchFilter(this.value)" autocomplete="off" aria-label="Hledat sekci">
     </div>
     <div class="hub-grid" id="hubTiles"></div>
+    <div class="hub-results" id="hubResults" style="display:none"></div>
     <div class="hub-quickadd">
       <button class="btn primary" onclick="addTask()">+ Rychlý úkol</button>
     </div>
@@ -5290,18 +5301,58 @@ function favToggle(key) {
 // HLEDÁNÍ SEKCÍ
 // ============================================================
 function _normTxt(s) { return String(s || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, ""); }
+
+// Co všechno jde najít na hubu (moduly i podstránky) + kam to skočí
+function _goCare(page) { enterModule("care"); goto(page); }
+const HUB_SECTIONS = [
+  { label: "Péče — Martin",     icon: "🩺", where: "Modul",     keywords: "pece martin dite", go: () => enterModule("care") },
+  { label: "Dashboard",         icon: "📋", where: "Péče",      keywords: "prehled dashboard", go: () => _goCare("dashboard") },
+  { label: "Profil syna",       icon: "🧒", where: "Péče",      keywords: "profil dite martin", go: () => _goCare("profile") },
+  { label: "Vyšetření",         icon: "🔬", where: "Péče",      keywords: "vysetreni lekari medicina", go: () => _goCare("examinations") },
+  { label: "Genetika",          icon: "🧬", where: "Péče",      keywords: "genetika geny", go: () => _goCare("genetics") },
+  { label: "Úkoly (péče)",      icon: "✅", where: "Péče",      keywords: "ukoly pece terminy", go: () => _goCare("tasks") },
+  { label: "Kontakty",          icon: "☎️", where: "Péče",      keywords: "kontakty telefony lekari", go: () => _goCare("contacts") },
+  { label: "Kalendář kontrol",  icon: "📅", where: "Péče",      keywords: "kalendar kontroly terminy schuzky", go: () => _goCare("appointments") },
+  { label: "Cvičení – tracker", icon: "💪", where: "Péče",      keywords: "cviceni tracker rehabilitace cvik", go: () => _goCare("exercise") },
+  { label: "Růst a měření",     icon: "📈", where: "Péče",      keywords: "rust mereni vyska vaha", go: () => _goCare("growth") },
+  { label: "Dovednosti",        icon: "🎓", where: "Péče",      keywords: "dovednosti skills pokrok", go: () => _goCare("skills") },
+  { label: "Úkoly",             icon: "✅", where: "Modul",     keywords: "ukoly admin seznam", go: () => enterModule("tasks") },
+  { label: "Finance",           icon: "💰", where: "Modul",     keywords: "finance penize rozpocet uvery vyuctovani", go: () => enterModule("finance") },
+  { label: "Domácnost",         icon: "🏡", where: "Modul",     keywords: "domacnost dum energie", go: () => enterModule("home") },
+  { label: "Dům – realizace",   icon: "🏠", where: "Domácnost", keywords: "dum realizace opravy prace", go: () => { enterModule("home"); domacnostTab = "house"; renderDomacnostModule(); } },
+  { label: "Energie – měření",  icon: "⚡", where: "Domácnost", keywords: "energie mereni voda teplo plyn", go: () => { enterModule("home"); domacnostTab = "energy"; renderDomacnostModule(); } }
+];
+let _hubHits = [];
+function hubResultClick(i) { const s = _hubHits[i]; if (s) { try { s.go(); } catch (e) { console.error(e); } } }
+
 function hubSearchFilter(q) {
   const norm = _normTxt(q).trim();
-  const tiles = document.querySelectorAll("#hubTiles .hub-tile");
-  let shown = 0;
-  tiles.forEach(t => {
-    const hay = _normTxt(t.getAttribute("data-search") || "");
-    const hit = !norm || hay.indexOf(norm) !== -1;
-    t.classList.toggle("hidden", !hit);
-    if (hit) shown++;
-  });
-  const empty = document.getElementById("hubEmpty");
-  if (empty) empty.style.display = shown === 0 ? "block" : "none";
+  const grid = document.getElementById("hubTiles");
+  const results = document.getElementById("hubResults");
+  const cal = document.getElementById("hubCalendar");
+  const quick = document.querySelector(".hub-quickadd");
+  if (!norm) { // prázdné hledání → zpět na dlaždice
+    if (grid) grid.style.display = "";
+    if (cal) cal.style.display = "";
+    if (quick) quick.style.display = "";
+    if (results) { results.style.display = "none"; results.innerHTML = ""; }
+    return;
+  }
+  if (grid) grid.style.display = "none";
+  if (cal) cal.style.display = "none";
+  if (quick) quick.style.display = "none";
+  _hubHits = HUB_SECTIONS.filter(s => _normTxt(s.label + " " + (s.keywords || "") + " " + (s.where || "")).indexOf(norm) !== -1);
+  if (results) {
+    results.style.display = "";
+    results.innerHTML = _hubHits.length
+      ? _hubHits.map((s, i) => `
+          <button class="hub-res" onclick="hubResultClick(${i})">
+            <span class="res-ico">${s.icon}</span>
+            <span class="res-main"><span class="res-label">${esc(s.label)}</span><span class="res-where">${esc(s.where)}</span></span>
+            <span class="res-arrow">→</span>
+          </button>`).join("")
+      : `<div class="hub-empty">Nic nenalezeno.</div>`;
+  }
 }
 
 function renderHub() {
