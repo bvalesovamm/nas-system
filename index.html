@@ -7,7 +7,7 @@
 <title>Náš systém</title>
 <!-- PWA -->
 <link rel="manifest" href="manifest.json">
-<meta name="theme-color" content="#f5f1ea">
+<meta name="theme-color" content="#eef0f4">
 <link rel="icon" href="icon-192.png">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -37,16 +37,16 @@
 </script>
 <style>
 :root {
-  --bg: #f5f1ea;
-  --bg-card: #fbf8f3;
+  --bg: #eef0f4;
+  --bg-card: #ffffff;
   --bg-elev: #ffffff;
-  --ink: #1a1814;
-  --ink-soft: #4a463d;
-  --ink-muted: #8a8478;
-  --line: #e3dccf;
-  --line-strong: #c7bfae;
-  --accent: #6b4423;
-  --accent-soft: #d4a574;
+  --ink: #1f242b;
+  --ink-soft: #515862;
+  --ink-muted: #8b929c;
+  --line: #e2e5ea;
+  --line-strong: #cbd0d8;
+  --accent: #0c7a52;
+  --accent-soft: #b8e6d4;
   --red: #a8412a;
   --red-bg: #f4dcd3;
   --green: #4a6b3a;
@@ -64,30 +64,30 @@
   --mono: 'JetBrains Mono', monospace;
   --radius: 6px;
   --radius-lg: 10px;
-  --shadow: 0 1px 2px rgba(26,24,20,0.04), 0 2px 8px rgba(26,24,20,0.03);
-  --shadow-lg: 0 4px 12px rgba(26,24,20,0.08), 0 12px 32px rgba(26,24,20,0.06);
+  --shadow: 0 1px 2px rgba(20,24,31,0.05), 0 2px 8px rgba(20,24,31,0.04);
+  --shadow-lg: 0 4px 12px rgba(20,24,31,0.10), 0 12px 32px rgba(20,24,31,0.07);
   --ok: #4a6b3a; --ok-bg: #dfe6d3;
   --warn: #8a6914; --warn-bg: #f0e4c4;
   --danger: #a8412a; --danger-bg: #f4dcd3;
   --info: #2c4f6b; --info-bg: #d4e0ea;
   --fs-xs: 11px; --fs-sm: 12px; --fs-base: 13px; --fs-md: 15px; --fs-lg: 18px; --fs-xl: 22px;
   --sp-1: 4px; --sp-2: 8px; --sp-3: 12px; --sp-4: 16px; --sp-5: 24px; --sp-6: 36px;
-  --focus-ring: 0 0 0 3px rgba(107,68,35,0.22);
+  --focus-ring: 0 0 0 3px rgba(12,122,82,0.22);
   --on-accent: #fff;
 }
 
-/* ===== TMAVÝ REŽIM (teplá tmavá, drží papírovou identitu) ===== */
+/* ===== TMAVÝ REŽIM (teplá tmavá + zelený akcent dle kolegy) ===== */
 [data-theme="dark"] {
-  --bg: #1a1714;
-  --bg-card: #221e1a;
-  --bg-elev: #2a2521;
+  --bg: #16130f;
+  --bg-card: #232020;
+  --bg-elev: #2d2926;
   --ink: #ece6db;
   --ink-soft: #c4bcae;
   --ink-muted: #9a9384;
-  --line: #36302a;
-  --line-strong: #4a4339;
-  --accent: #c89b6a;
-  --accent-soft: #8a6440;
+  --line: #3a342d;
+  --line-strong: #4f4840;
+  --accent: #00cc86;
+  --accent-soft: #115c43;
   --red: #e08a72;    --red-bg: #3a221c;
   --green: #8fb673;  --green-bg: #232c1b;
   --yellow: #d4b25a; --yellow-bg: #322a16;
@@ -100,8 +100,8 @@
   --warn: #d4b25a; --warn-bg: #322a16;
   --danger: #e08a72; --danger-bg: #3a221c;
   --info: #7fa8c4; --info-bg: #1b2832;
-  --focus-ring: 0 0 0 3px rgba(200,155,106,0.35);
-  --on-accent: #231f1a;
+  --focus-ring: 0 0 0 3px rgba(0,204,134,0.32);
+  --on-accent: #0a1f17;
 }
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -1619,6 +1619,7 @@ const FAMILY_EMAIL = ""; // e-mail se pamatuje jen v zařízení (localStorage),
 // Pokud bys časem chtěla, šlo by to rozdělit do více kolekcí, ale takhle je to
 // nejjednodušší pro tvůj rozsah dat (do 1 MB v jednom dokumentu = pohodlně se vejde).
 const DOC_PATH = ["plan", "martin"];
+const SNAP_PATH = ["plan", "martin_snap"]; // zálohy/snímky v samostatném dokumentu (limit 1 MB na dokument)
 
 // ╚════════════════════════════════════════════════════════════╝
 
@@ -1653,7 +1654,9 @@ let saveDebounce = null;
 let _undoStack = [];      // serializované stavy DB PŘED jednotlivými změnami
 let _undoBase = null;     // stav DB jako po poslední změně (= před tou příští)
 const UNDO_MAX = 20;      // kolik kroků zpět držet
-let snapshots = []; // denní záložní snímky (drží se v Firestore dokumentu vedle dat)
+let snapshots = []; // denní záložní snímky — v samostatném dokumentu SNAP_PATH
+let _legacySnapsInMain = null; // jednorázová migrace starých snímků uložených v hlavním dokumentu
+const SNAP_MAX = 5; // kolik denních snímků držet (aby snap dokument zůstal < 1 MB)
 
 // ============================================================
 // AUTH (přihlášení přes Firebase — e-mail + heslo)
@@ -1790,7 +1793,7 @@ function loadData() {
     } else {
       const d = snapshot.data();
       DB = d.data || JSON.parse(JSON.stringify(SEED));
-      snapshots = d.snapshots || [];
+      _legacySnapsInMain = Array.isArray(d.snapshots) ? d.snapshots : null; // staré uložení vedle dat → migrace
       // Ensure v4 fields exist (backwards compat for older cloud data)
       if (!DB.exerciseLog) DB.exerciseLog = [];
       if (!DB.adminTasks) DB.adminTasks = [];
@@ -1801,12 +1804,14 @@ function loadData() {
       migrateAssignees(DB);
     }
   }).then(() => {
+    // Zálohy: načti je ze samostatného dokumentu; případně zmigruj staré z hlavního dokumentu
+    return loadSnapshotsAndMigrate();
+  }).then(() => {
     // Po počátečním načtení / seedu spustíme live listener
     unsubscribe = fb.onSnapshot(docRef, snap => {
       if (!snap.exists()) return;
       const remoteData = snap.data().data;
       if (!remoteData) return;
-      snapshots = snap.data().snapshots || snapshots;
       // Backwards compat
       if (!remoteData.exerciseLog) remoteData.exerciseLog = [];
       if (!remoteData.adminTasks) remoteData.adminTasks = [];
@@ -1888,7 +1893,7 @@ function persistNow() {
   if (!firestore || !DB) return;
   const fb = window.__firebaseModule;
   const docRef = fb.doc(firestore, ...DOC_PATH);
-  return fb.setDoc(docRef, { data: DB, snapshots: snapshots, updatedAt: Date.now() })
+  return fb.setDoc(docRef, { data: DB, updatedAt: Date.now() })
     .then(() => setSyncStatus("ok", "Uloženo"))
     .then(() => setTimeout(() => setSyncStatus("ok", "Připojeno"), 1200))
     .catch(err => {
@@ -1896,6 +1901,39 @@ function persistNow() {
       console.error("Save failed:", err);
       alert("Nepodařilo se uložit změny: " + err.message);
     });
+}
+
+// Zálohy/snímky se ukládají do samostatného dokumentu (kvůli limitu 1 MB na dokument).
+function persistSnapshots() {
+  if (!firestore) return;
+  const fb = window.__firebaseModule;
+  try {
+    const snapRef = fb.doc(firestore, ...SNAP_PATH);
+    return fb.setDoc(snapRef, { snapshots: snapshots, updatedAt: Date.now() })
+      .catch(err => { console.error("Snap save failed:", err); });
+  } catch (e) { console.error(e); }
+}
+
+// Načte snímky ze snap dokumentu; když ještě neexistuje a staré snímky jsou v hlavním
+// dokumentu, jednorázově je přesune a hlavní dokument tím zmenší (odblokuje ukládání).
+function loadSnapshotsAndMigrate() {
+  if (!firestore) return;
+  const fb = window.__firebaseModule;
+  const snapRef = fb.doc(firestore, ...SNAP_PATH);
+  return fb.getDoc(snapRef).then(s => {
+    if (s && s.exists && s.exists() && Array.isArray(s.data().snapshots)) {
+      snapshots = s.data().snapshots.slice(-SNAP_MAX);
+    } else if (_legacySnapsInMain && _legacySnapsInMain.length) {
+      // migrace: vezmi staré snímky z hlavního dokumentu → snap dokument
+      snapshots = _legacySnapsInMain.slice(-SNAP_MAX);
+      persistSnapshots();
+    } else {
+      snapshots = [];
+    }
+  }).then(() => {
+    // pokud byly snímky v hlavním dokumentu, přepiš ho bez nich (zmenšení → konec chyby velikosti)
+    if (_legacySnapsInMain) { _legacySnapsInMain = null; return persistNow(); }
+  }).catch(err => { console.error("Snapshot load/migrate failed:", err); snapshots = snapshots || []; });
 }
 
 // Vrátí poslední změnu (krok zpět)
@@ -2687,8 +2725,8 @@ function maybeDailySnapshot() {
   if (slim.energy) slim.energy.measurements = [];
   if (slim.finance) slim.finance.predikce = [];
   snapshots.push({ date: today, ts: Date.now(), data: slim });
-  if (snapshots.length > 7) snapshots = snapshots.slice(-7); // drž posledních 7 dní
-  save();
+  if (snapshots.length > SNAP_MAX) snapshots = snapshots.slice(-SNAP_MAX); // drž posledních N dní
+  persistSnapshots();
 }
 
 function snapshotSummary(s) {
@@ -5167,7 +5205,7 @@ function applyTheme() {
   h.setAttribute("data-theme-pref", pref);
   h.setAttribute("data-theme", dark ? "dark" : "light");
   const meta = document.querySelector('meta[name="theme-color"]');
-  if (meta) meta.setAttribute("content", dark ? "#1a1714" : "#f5f1ea");
+  if (meta) meta.setAttribute("content", dark ? "#16130f" : "#eef0f4");
   document.querySelectorAll(".theme-toggle button").forEach(b => {
     const on = b.getAttribute("data-theme") === pref;
     b.classList.toggle("is-on", on);
