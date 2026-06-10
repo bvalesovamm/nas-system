@@ -3,6 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<script>/* motiv: nastav co nejdřív, ať to nebliká */(function(){try{var p=localStorage.getItem('themePref')||'system';var dark=p==='dark'||(p==='system'&&window.matchMedia&&matchMedia('(prefers-color-scheme: dark)').matches);var h=document.documentElement;h.setAttribute('data-theme-pref',p);h.setAttribute('data-theme',dark?'dark':'light');}catch(e){}})();</script>
 <title>Náš systém</title>
 <!-- PWA -->
 <link rel="manifest" href="manifest.json">
@@ -72,6 +73,35 @@
   --fs-xs: 11px; --fs-sm: 12px; --fs-base: 13px; --fs-md: 15px; --fs-lg: 18px; --fs-xl: 22px;
   --sp-1: 4px; --sp-2: 8px; --sp-3: 12px; --sp-4: 16px; --sp-5: 24px; --sp-6: 36px;
   --focus-ring: 0 0 0 3px rgba(107,68,35,0.22);
+  --on-accent: #fff;
+}
+
+/* ===== TMAVÝ REŽIM (teplá tmavá, drží papírovou identitu) ===== */
+[data-theme="dark"] {
+  --bg: #1a1714;
+  --bg-card: #221e1a;
+  --bg-elev: #2a2521;
+  --ink: #ece6db;
+  --ink-soft: #c4bcae;
+  --ink-muted: #9a9384;
+  --line: #36302a;
+  --line-strong: #4a4339;
+  --accent: #c89b6a;
+  --accent-soft: #8a6440;
+  --red: #e08a72;    --red-bg: #3a221c;
+  --green: #8fb673;  --green-bg: #232c1b;
+  --yellow: #d4b25a; --yellow-bg: #322a16;
+  --blue: #7fa8c4;   --blue-bg: #1b2832;
+  --purple: #b896c8; --purple-bg: #2a2030;
+  --teal: #6fb5af;   --teal-bg: #1a2e2c;
+  --shadow: 0 1px 2px rgba(0,0,0,0.35), 0 2px 8px rgba(0,0,0,0.30);
+  --shadow-lg: 0 4px 12px rgba(0,0,0,0.45), 0 12px 32px rgba(0,0,0,0.40);
+  --ok: #8fb673; --ok-bg: #232c1b;
+  --warn: #d4b25a; --warn-bg: #322a16;
+  --danger: #e08a72; --danger-bg: #3a221c;
+  --info: #7fa8c4; --info-bg: #1b2832;
+  --focus-ring: 0 0 0 3px rgba(200,155,106,0.35);
+  --on-accent: #231f1a;
 }
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -247,7 +277,7 @@ body {
 .btn:active { transform: translateY(1px); }
 .btn:focus-visible { outline: none; box-shadow: var(--focus-ring); }
 .btn.primary { background: var(--ink); color: var(--bg-card); border-color: var(--ink); }
-.btn.primary:hover { background: var(--accent); border-color: var(--accent); color: #fff; }
+.btn.primary:hover { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
 
 /* ===== Cards & sections ===== */
 .section { margin-bottom: 36px; }
@@ -332,7 +362,7 @@ body {
   vertical-align: top;
 }
 .tbl tr:last-child td { border-bottom: none; }
-.tbl tr:hover td { background: rgba(255,255,255,0.6); }
+.tbl tr:hover td { background: var(--bg-card); }
 
 /* ===== Dashboard tiles ===== */
 .tiles {
@@ -464,7 +494,7 @@ body {
 .trow:hover { background: var(--bg); }
 .tcheck { width: 18px; height: 18px; flex-shrink: 0; border: 2px solid var(--ink-muted); border-radius: 5px; cursor: pointer; transition: background 0.12s, border-color 0.12s; }
 .tcheck.done { background: var(--green); border-color: var(--green); }
-.tcheck.done::after { content: "✓"; color: #fff; font-size: 12px; display: flex; align-items: center; justify-content: center; line-height: 14px; }
+.tcheck.done::after { content: "✓"; color: var(--on-accent); font-size: 12px; display: flex; align-items: center; justify-content: center; line-height: 14px; }
 .ttitle { flex: 1; min-width: 0; cursor: pointer; font-size: 14px; line-height: 1.35; }
 .ttitle:hover { color: var(--accent); }
 .tmeta { display: flex; align-items: center; gap: 8px; flex-shrink: 0; flex-wrap: wrap; justify-content: flex-end; }
@@ -486,7 +516,7 @@ body {
 #undoFab {
   position: fixed; left: 16px; bottom: 16px; z-index: 1500;
   align-items: center; gap: 6px;
-  background: var(--ink); color: #fff; border: none;
+  background: var(--ink); color: var(--bg); border: none;
   padding: 11px 16px; border-radius: 999px; cursor: pointer;
   font-size: 14px; font-weight: 600; font-family: inherit;
   box-shadow: 0 4px 14px rgba(0,0,0,0.22); transition: transform 0.12s, background 0.12s;
@@ -496,7 +526,7 @@ body {
 @media (max-width: 760px) { #undoFab { left: 12px; bottom: 12px; padding: 10px 14px; } }
 .wk-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 8px; }
 .wk-day { border: 1px solid var(--line); border-radius: 12px; padding: 10px; background: var(--bg-card); min-height: 120px; display: flex; flex-direction: column; gap: 6px; }
-.wk-day.today { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent) inset; background: #fff; }
+.wk-day.today { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent) inset; background: var(--bg-elev); }
 .wk-day.past { opacity: 0.6; }
 .wk-day-head { display: flex; flex-direction: column; gap: 1px; margin-bottom: 2px; }
 .wk-day-name { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: var(--ink); }
@@ -544,7 +574,7 @@ body {
 }
 .cal-day.today .cal-day-num {
   background: var(--accent);
-  color: white;
+  color: var(--on-accent);
   border-radius: 50%;
   width: 22px;
   height: 22px;
@@ -1034,7 +1064,7 @@ mark { background: var(--yellow-bg); color: var(--ink); padding: 0 2px; border-r
 .kanban { display: flex; gap: 14px; overflow-x: auto; -webkit-overflow-scrolling: touch; padding-bottom: 10px; align-items: flex-start; }
 .kan-col { flex: 0 0 300px; max-width: 300px; background: var(--bg-elev); border: 1px solid var(--line); border-radius: var(--radius-lg); padding: 10px; }
 .kan-col-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-weight: 700; font-size: 12px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--ink-soft); padding: 4px 6px 10px; }
-.kan-count { background: var(--accent); color: #fff; border-radius: 10px; font-size: 11px; padding: 1px 8px; font-weight: 700; }
+.kan-count { background: var(--accent); color: var(--on-accent); border-radius: 10px; font-size: 11px; padding: 1px 8px; font-weight: 700; }
 .kan-card { display: flex; gap: 10px; background: var(--bg-card); border: 1px solid var(--line); border-radius: var(--radius); padding: 11px 12px; margin-bottom: 9px; cursor: pointer; transition: box-shadow 0.12s, transform 0.12s; }
 .kan-card:hover { box-shadow: var(--shadow); transform: translateY(-1px); }
 .kan-check { flex: 0 0 20px; width: 20px; height: 20px; border: 2px solid var(--line-strong); border-radius: 6px; margin-top: 1px; cursor: pointer; }
@@ -1063,7 +1093,7 @@ mark { background: var(--yellow-bg); color: var(--ink); padding: 0 2px; border-r
 .dom-tab { background: var(--bg-elev); border: 1px solid var(--line); color: var(--ink-soft); padding: 9px 16px; border-radius: 999px; font-family: var(--sans); font-weight: 600; font-size: 13px; cursor: pointer; transition: background .12s, border-color .12s, color .12s, box-shadow .12s; }
 .dom-tab:hover { border-color: var(--line-strong); background: var(--bg-card); }
 .dom-tab:focus-visible { outline: none; box-shadow: var(--focus-ring); }
-.dom-tab.active { background: var(--sec, var(--accent)); border-color: var(--sec, var(--accent)); color: #fff; }
+.dom-tab.active { background: var(--sec, var(--accent)); border-color: var(--sec, var(--accent)); color: var(--on-accent); }
 .dom-tab.active:hover { background: var(--sec, var(--accent)); }
 .dom-subtabs { display: flex; gap: 8px; margin-bottom: 16px; }
 .kan-sub-box.done { background: var(--accent); border-color: var(--accent); }
@@ -1098,7 +1128,7 @@ mark { background: var(--yellow-bg); color: var(--ink); padding: 0 2px; border-r
 .estat-sub { font-size: 11px; color: var(--ink-muted); margin-top: 4px; }
 .echart { background: var(--bg-card); border: 1px solid var(--line); border-radius: var(--radius-lg); padding: 14px 16px; margin-bottom: 16px; }
 .echart-h { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; color: var(--ink-soft); margin-bottom: 8px; }
-#chartTip { position: fixed; z-index: 9999; display: none; pointer-events: none; background: var(--ink, #2b2b2b); color: #fff; font-size: 12px; font-weight: 600; padding: 7px 10px; border-radius: 8px; box-shadow: 0 6px 20px rgba(0,0,0,.25); max-width: 240px; line-height: 1.4; }
+#chartTip { position: fixed; z-index: 9999; display: none; pointer-events: none; background: var(--ink, #2b2b2b); color: var(--bg); font-size: 12px; font-weight: 600; padding: 7px 10px; border-radius: 8px; box-shadow: 0 6px 20px rgba(0,0,0,.25); max-width: 240px; line-height: 1.4; }
 @media (max-width: 700px) {
   .etbl-head { display: none; }
   .etbl-row.e4 { grid-template-columns: 1.4fr 1fr 1fr; }
@@ -1129,6 +1159,25 @@ mark { background: var(--yellow-bg); color: var(--ink); padding: 0 2px; border-r
   .energy-cost { text-align: left; }
 }
 @media (max-width: 900px) { .kan-col { flex: 0 0 82%; max-width: 82%; } }
+
+/* ===== MOBIL: kanban swipe + tabulky čitelné ===== */
+@media (max-width: 760px) {
+  /* Kanban: plynulé „odswipnutí" po jednom sloupci + náhled dalšího */
+  .kanban { scroll-snap-type: x mandatory; gap: 10px; }
+  .kan-col { scroll-snap-align: start; flex: 0 0 86%; max-width: 86%; }
+  .kan-card { padding: 13px 13px; }            /* větší plocha na dotek */
+  .kan-check { width: 24px; height: 24px; flex-basis: 24px; }
+
+  /* Tabulky: první sloupec „přilepený", ať při scrollu vidíš, o čem řádek je */
+  .tbl-wrap { position: relative; }
+  .tbl th:first-child, .tbl td:first-child {
+    position: sticky; left: 0; z-index: 2;
+    background: var(--bg-elev);
+    box-shadow: 1px 0 0 var(--line);
+  }
+  .tbl th:first-child { background: var(--bg-card); }
+  .tbl tr:hover td:first-child { background: var(--bg-card); }
+}
 .hub-inner { max-width: 920px; margin: 0 auto; }
 .hub-head { text-align: center; margin-bottom: 40px; }
 .hub-title { font-family: var(--serif); font-size: 34px; font-weight: 600; color: var(--ink); letter-spacing: -0.02em; }
@@ -1149,6 +1198,34 @@ mark { background: var(--yellow-bg); color: var(--ink); padding: 0 2px; border-r
 .btn-hub { width: 100%; padding: 9px; margin-bottom: 14px; background: var(--accent); color: var(--bg-card); border: none; border-radius: var(--radius); font-family: var(--sans); font-weight: 600; font-size: 13px; cursor: pointer; }
 .btn-hub:hover { background: var(--ink); }
 @media (max-width: 640px) { .hub-title { font-size: 26px; } .hub { padding: 32px 16px 80px; } }
+
+/* ===== Přepínač motivu (světlo / systém / tma) ===== */
+.theme-toggle { display: inline-flex; gap: 2px; background: var(--bg-elev); border: 1px solid var(--line); border-radius: 99px; padding: 3px; }
+.theme-toggle button { width: 30px; height: 28px; border: none; background: transparent; color: var(--ink-muted); border-radius: 99px; cursor: pointer; font-size: 15px; line-height: 1; display: flex; align-items: center; justify-content: center; transition: background .12s, color .12s; }
+.theme-toggle button:hover { color: var(--ink); }
+.theme-toggle button.is-on { background: var(--accent); color: var(--on-accent); }
+.theme-toggle button:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+.sidebar-footer .theme-toggle { width: 100%; justify-content: center; margin-bottom: 8px; }
+
+/* ===== Hub: oslovení + datum/svátek ===== */
+.hub-greet { font-family: var(--serif); font-size: 15px; color: var(--ink-soft); margin-top: 8px; }
+.hub-greet .nameday { color: var(--accent); font-weight: 600; }
+.hub-head-top { display: flex; justify-content: flex-end; margin-bottom: 4px; }
+
+/* ===== Hub: hledání sekcí ===== */
+.hub-search-wrap { max-width: 420px; margin: 0 auto 22px; position: relative; }
+.hub-search-wrap input { width: 100%; padding: 11px 14px 11px 38px; border: 1px solid var(--line); border-radius: 99px; background: var(--bg-elev); color: var(--ink); font-family: var(--sans); font-size: 14px; }
+.hub-search-wrap input:focus { outline: none; border-color: var(--accent); box-shadow: var(--focus-ring); }
+.hub-search-wrap::before { content: "🔍"; position: absolute; left: 14px; top: 50%; transform: translateY(-50%); font-size: 13px; opacity: .6; pointer-events: none; }
+.hub-tile.hidden { display: none; }
+.hub-empty { text-align: center; color: var(--ink-muted); font-size: 14px; padding: 24px; }
+
+/* ===== Hub: hvězdička oblíbených ===== */
+.hub-tile .tile-fav { position: absolute; top: 12px; right: 12px; width: 30px; height: 30px; display: flex; align-items: center; justify-content: center; border: none; background: transparent; cursor: pointer; font-size: 17px; line-height: 1; color: var(--line-strong); border-radius: 8px; transition: color .12s, background .12s, transform .12s; z-index: 2; }
+.hub-tile .tile-fav:hover { background: var(--bg-elev); transform: scale(1.1); }
+.hub-tile .tile-fav.on { color: var(--yellow); }
+.hub-tile.is-fav { border-color: var(--accent-soft); }
+.hub-tile .tile-fav:focus-visible { outline: none; box-shadow: var(--focus-ring); }
 
 /* ===== Sekční barevnost (přebarvuje se podle stránky přes --sec) ===== */
 .app { --sec: var(--accent); }
@@ -1216,7 +1293,7 @@ mark { background: var(--yellow-bg); color: var(--ink); padding: 0 2px; border-r
   margin-top: 8px;
   transition: all 0.12s;
 }
-.btn-logout:hover { background: var(--red); color: white; border-color: var(--red); }
+.btn-logout:hover { background: var(--red); color: var(--on-accent); border-color: var(--red); }
 
 /* Scrollbar */
 ::-webkit-scrollbar { width: 10px; height: 10px; }
@@ -1299,8 +1376,19 @@ mark { background: var(--yellow-bg); color: var(--ink); padding: 0 2px; border-r
 <div class="hub" id="hubScreen">
   <div class="hub-inner">
     <div class="hub-head">
+      <div class="hub-head-top">
+        <div class="theme-toggle" id="themeToggle">
+          <button type="button" data-theme="light"  onclick="setTheme('light')"  title="Světlý motiv" aria-label="Světlý motiv">☀</button>
+          <button type="button" data-theme="system" onclick="setTheme('system')" title="Podle systému" aria-label="Podle systému">🖥</button>
+          <button type="button" data-theme="dark"   onclick="setTheme('dark')"   title="Tmavý motiv" aria-label="Tmavý motiv">🌙</button>
+        </div>
+      </div>
       <div class="hub-title">Náš systém</div>
       <div class="hub-subtitle">Rodinný hub · vyber, co chceš řešit</div>
+      <div class="hub-greet" id="hubGreet"></div>
+    </div>
+    <div class="hub-search-wrap">
+      <input type="text" id="hubSearch" placeholder="Hledat sekci…" oninput="hubSearchFilter(this.value)" autocomplete="off" aria-label="Hledat sekci">
     </div>
     <div class="hub-grid" id="hubTiles"></div>
     <div class="hub-quickadd">
@@ -1389,6 +1477,11 @@ mark { background: var(--yellow-bg); color: var(--ink); padding: 0 2px; border-r
     </nav>
 
     <div class="sidebar-footer">
+      <div class="theme-toggle" id="themeToggleSide">
+        <button type="button" data-theme="light"  onclick="setTheme('light')"  title="Světlý motiv" aria-label="Světlý motiv">☀</button>
+        <button type="button" data-theme="system" onclick="setTheme('system')" title="Podle systému" aria-label="Podle systému">🖥</button>
+        <button type="button" data-theme="dark"   onclick="setTheme('dark')"   title="Tmavý motiv" aria-label="Tmavý motiv">🌙</button>
+      </div>
       <button class="btn-io" onclick="exportData()">↓ Záloha do souboru (JSON)</button>
       <button class="btn-io" onclick="migrateToV4()" style="color: var(--blue, #2c4f6b);">⇪ Migrovat z Excelu (v4)</button>
       <button class="btn-io" onclick="resetData()" style="color: var(--red);">⌫ Reset na původní</button>
@@ -1493,9 +1586,9 @@ const SEED = {
     "rules": []
   },
   "exerciseLog": [],
-  "yearRhythm": []
+  "yearRhythm": [],
+  "taskCategories": {}
 };
-
 </script>
 <script id="appjs">
 // ============================================================
@@ -2274,10 +2367,43 @@ function repeatFreqLabel(r) {
   return r.freq === "daily" ? "Denně" : r.freq === "weekly" ? "Týdně" : r.freq === "monthly" ? "Měsíčně" : r.freq === "yearly" ? "Ročně" : "Ne";
 }
 
+// ===== Řízené kategorie úkolů (podle modulů v hubu a jejich podsekcí) =====
+// Výchozí slovník per store. Péče = podsekce modulu Péče (sloupce = podsekce).
+// Úkoly (admin) = ostatní moduly + podsekce ve tvaru "Modul - Podsekce"
+// (catParent → sloupec = modul, catSub → podkategorie).
+function taskCatDefaults(store) {
+  if (store === "admin") return [
+    "Domácnost - Dům", "Domácnost - Energie",
+    "Finance - Rozpočet", "Finance - Vyúčtování", "Finance - Úvěry",
+    "Provoz", "Projekt"
+  ];
+  // care
+  return ["Vyšetření", "Genetika", "Termíny", "Cvičení", "Rehabilitace", "Růst", "Pomůcky", "Dovednosti"];
+}
+// Aktuální řízený seznam (uložený) nebo výchozí, když ještě nic uloženo není.
+function taskCats(store) {
+  const tc = (DB && DB.taskCategories) || {};
+  const arr = tc[store];
+  return (Array.isArray(arr) && arr.length) ? arr.slice() : taskCatDefaults(store);
+}
+// Při první správě list zhmotníme do DB, ať je editovatelný a uloží se napevno.
+function ensureTaskCats(store) {
+  if (!DB.taskCategories || typeof DB.taskCategories !== "object") DB.taskCategories = {};
+  if (!Array.isArray(DB.taskCategories[store]) || !DB.taskCategories[store].length) {
+    DB.taskCategories[store] = taskCatDefaults(store).slice();
+  }
+  return DB.taskCategories[store];
+}
+// Nabídka pro pole = řízený seznam ∪ kategorie už použité na úkolech (ať se nic neztratí).
+function taskCatOptions(store) {
+  const used = (taskList(store) || []).map(x => x.category).filter(c => c);
+  return [...new Set([...taskCats(store), ...used])].sort((a, b) => String(a).localeCompare(String(b), "cs"));
+}
+
 // Sdílená pole formuláře pro nový i upravovaný úkol
 function taskFormFields(store, t) {
   t = t || {};
-  const cats = [...new Set(taskList(store).map(x => x.category).filter(c => c))].sort();
+  const cats = taskCatOptions(store);
   return [
     { key: "title", label: "Úkol", value: t.title || "" },
     { key: "category", label: "Kategorie (vyber nebo napiš novou)", type: "datalist", options: cats, value: t.category || "", placeholder: "např. Dům, Provoz, Projekt…" },
@@ -2342,6 +2468,86 @@ function addTask(store) {
   openModal("Nový úkol", taskFormFields(store, {}), data => {
     taskList(store).unshift(applyTaskForm({}, data));
   });
+}
+
+// ===== Správce kategorií (přidat / přejmenovat / smazat — uloží se napevno) =====
+function manageCategories(store) {
+  store = store || "care";
+  ensureTaskCats(store);
+  // Vlastní obsah v #modalFields; footer „Uložit" jen zavře (změny se ukládají hned).
+  modalState = { fields: [], onSave: () => { renderAll(); } };
+  const titleEl = document.getElementById("modalTitle");
+  if (titleEl) titleEl.textContent = "Kategorie — " + (store === "care" ? "Péče" : "Úkoly");
+  const box = document.getElementById("modalFields");
+  if (box) box.innerHTML = renderCatManager(store);
+  const bg = document.getElementById("modalBg");
+  if (bg) bg.classList.add("show");
+  return true;
+}
+function renderCatManager(store) {
+  const cats = ensureTaskCats(store);
+  const hint = store === "care"
+    ? "Podsekce modulu Péče. Jeden název = jeden sloupec/sekce."
+    : "Tvar „Modul – Podsekce“ (sloupec = modul). Např. Finance - Rozpočet.";
+  const rows = cats.length ? cats.map((c, i) => `
+    <div class="sub-edit-row">
+      <input type="text" class="sub-edit-input" data-cat="${i}" value="${esc(c)}"
+             onchange="catMgrRename('${store}',${i},this.value)" placeholder="Název kategorie…">
+      <button type="button" class="icon-btn" onclick="catMgrDel('${store}',${i})" title="Smazat z nabídky">✕</button>
+    </div>`).join("") : `<div style="font-size:12px;color:var(--ink-muted);padding:4px 0">Zatím žádné kategorie.</div>`;
+  return `
+    <div class="field">
+      <label>Kategorie pro: ${store === "care" ? "Péče — Martin" : "Úkoly"}</label>
+      <div style="font-size:12px;color:var(--ink-muted);margin-bottom:10px">${esc(hint)}</div>
+      <div id="catMgrList">${rows}</div>
+      <div class="sub-edit-row" style="margin-top:10px">
+        <input type="text" id="catMgrNew" class="sub-edit-input" placeholder="Přidat novou kategorii…"
+               onkeydown="if(event.key==='Enter'){event.preventDefault();catMgrAdd('${store}')}">
+        <button type="button" class="btn" onclick="catMgrAdd('${store}')">+ Přidat</button>
+      </div>
+      <div style="font-size:11px;color:var(--ink-muted);margin-top:8px">
+        Přejmenování upraví i kategorii u existujících úkolů. Smazání jen ubere z nabídky (úkoly zůstanou).
+      </div>
+    </div>`;
+}
+function refreshCatManager(store) {
+  const list = document.getElementById("catMgrList");
+  if (list) list.innerHTML = ensureTaskCats(store).map((c, i) => `
+    <div class="sub-edit-row">
+      <input type="text" class="sub-edit-input" data-cat="${i}" value="${esc(c)}"
+             onchange="catMgrRename('${store}',${i},this.value)" placeholder="Název kategorie…">
+      <button type="button" class="icon-btn" onclick="catMgrDel('${store}',${i})" title="Smazat z nabídky">✕</button>
+    </div>`).join("");
+}
+function catMgrAdd(store) {
+  const arr = ensureTaskCats(store);
+  const inp = document.getElementById("catMgrNew");
+  const v = inp ? inp.value.trim() : "";
+  if (!v) return;
+  if (arr.some(c => c.toLowerCase() === v.toLowerCase())) { if (inp) inp.value = ""; return; }
+  arr.push(v);
+  if (inp) inp.value = "";
+  save();
+  refreshCatManager(store);
+}
+function catMgrRename(store, i, val) {
+  const arr = ensureTaskCats(store);
+  const nw = String(val || "").trim();
+  const old = arr[i];
+  if (!nw || nw === old) { refreshCatManager(store); return; }
+  if (arr.some((c, j) => j !== i && c.toLowerCase() === nw.toLowerCase())) { refreshCatManager(store); return; }
+  arr[i] = nw;
+  // Přepiš i kategorii na existujících úkolech (přesná shoda).
+  (taskList(store) || []).forEach(t => { if (t.category === old) t.category = nw; });
+  save();
+  renderAll();
+  refreshCatManager(store);
+}
+function catMgrDel(store, i) {
+  const arr = ensureTaskCats(store);
+  arr.splice(i, 1);
+  save();
+  refreshCatManager(store);
 }
 
 // ===== Připomínky úkolů (lokální notifikace / „budík") =====
@@ -2760,6 +2966,7 @@ function renderTasks(store) {
       </div>
       <div class="page-actions">
         ${store === "admin" ? `<button class="btn" onclick="importTasksFromJson()">↥ Import (JSON)</button>` : ""}
+        <button class="btn" onclick="manageCategories('${store}')">⚙ Kategorie</button>
         <button class="btn primary" onclick="addTask('${store}')">+ Nový úkol</button>
       </div>
     </div>
@@ -4947,10 +5154,131 @@ const MODULES = {
   home:    { label: "Domácnost", icon: "🏡", color: "var(--yellow)", status: () => { const a = (DB.houseWorks || []).filter(h => !h.done); return a.length + " prací · " + fmtCZK(a.reduce((s, h) => s + (+h.price || 0), 0)); } }
 };
 
+// ============================================================
+// MOTIV (světlo / systém / tma)
+// ============================================================
+function _themePref() { try { return localStorage.getItem("themePref") || "system"; } catch (e) { return "system"; } }
+function _prefersDark() { try { return window.matchMedia && matchMedia("(prefers-color-scheme: dark)").matches; } catch (e) { return false; } }
+function applyTheme() {
+  if (typeof document === "undefined" || !document.documentElement) return; // test/headless
+  const pref = _themePref();
+  const dark = pref === "dark" || (pref === "system" && _prefersDark());
+  const h = document.documentElement;
+  h.setAttribute("data-theme-pref", pref);
+  h.setAttribute("data-theme", dark ? "dark" : "light");
+  const meta = document.querySelector('meta[name="theme-color"]');
+  if (meta) meta.setAttribute("content", dark ? "#1a1714" : "#f5f1ea");
+  document.querySelectorAll(".theme-toggle button").forEach(b => {
+    const on = b.getAttribute("data-theme") === pref;
+    b.classList.toggle("is-on", on);
+    b.setAttribute("aria-pressed", on ? "true" : "false");
+  });
+}
+function setTheme(pref) {
+  try { localStorage.setItem("themePref", pref); } catch (e) {}
+  applyTheme();
+}
+let _themeMqlBound = false;
+function bindThemeMql() {
+  if (_themeMqlBound) return;
+  try {
+    const mql = matchMedia("(prefers-color-scheme: dark)");
+    const cb = () => { if (_themePref() === "system") applyTheme(); };
+    if (mql.addEventListener) mql.addEventListener("change", cb);
+    else if (mql.addListener) mql.addListener(cb);
+    _themeMqlBound = true;
+  } catch (e) {}
+}
+
+// ============================================================
+// SVÁTKY (český občanský kalendář) + oslovení
+// ============================================================
+const NAMEDAYS = {
+  "01-01":"Nový rok","01-02":"Karina","01-03":"Radmila","01-04":"Diana","01-05":"Dalimil","01-06":"Tři králové","01-07":"Vilma","01-08":"Čestmír","01-09":"Vladan","01-10":"Břetislav","01-11":"Bohdana","01-12":"Pravoslav","01-13":"Edita","01-14":"Radovan","01-15":"Alice","01-16":"Ctirad","01-17":"Drahoslav","01-18":"Vladislav","01-19":"Doubravka","01-20":"Ilona","01-21":"Běla","01-22":"Slavomír","01-23":"Zdeněk","01-24":"Milena","01-25":"Miloš","01-26":"Zora","01-27":"Ingrid","01-28":"Otýlie","01-29":"Zdislava","01-30":"Robin","01-31":"Marika",
+  "02-01":"Hynek","02-02":"Nela","02-03":"Blažej","02-04":"Jarmila","02-05":"Dobromila","02-06":"Vanda","02-07":"Veronika","02-08":"Milada","02-09":"Apolena","02-10":"Mojmír","02-11":"Božena","02-12":"Slavěna","02-13":"Věnceslav","02-14":"Valentýn","02-15":"Jiřina","02-16":"Ljuba","02-17":"Miloslava","02-18":"Gizela","02-19":"Patrik","02-20":"Oldřich","02-21":"Lenka","02-22":"Petr","02-23":"Svatopluk","02-24":"Matěj","02-25":"Liliana","02-26":"Dorota","02-27":"Alexandr","02-28":"Lumír","02-29":"Horymír",
+  "03-01":"Bedřich","03-02":"Anežka","03-03":"Kamil","03-04":"Stela","03-05":"Kazimír","03-06":"Miroslav","03-07":"Tomáš","03-08":"Gabriela","03-09":"Františka","03-10":"Viktorie","03-11":"Anděla","03-12":"Řehoř","03-13":"Růžena","03-14":"Rút a Matylda","03-15":"Ida","03-16":"Elena a Herbert","03-17":"Vlastimil","03-18":"Eduard","03-19":"Josef","03-20":"Světlana","03-21":"Radek","03-22":"Leona","03-23":"Ivona","03-24":"Gabriel","03-25":"Marián","03-26":"Emanuel","03-27":"Dita","03-28":"Soňa","03-29":"Taťána","03-30":"Arnošt","03-31":"Kvido",
+  "04-01":"Hugo","04-02":"Erika","04-03":"Richard","04-04":"Ivana","04-05":"Miroslava","04-06":"Vendula","04-07":"Heřman a Hermína","04-08":"Ema","04-09":"Dušan","04-10":"Darja","04-11":"Izabela","04-12":"Julius","04-13":"Aleš","04-14":"Vincenc","04-15":"Anastázie","04-16":"Irena","04-17":"Rudolf","04-18":"Valérie","04-19":"Rostislav","04-20":"Marcela","04-21":"Alexandra","04-22":"Evženie","04-23":"Vojtěch","04-24":"Jiří","04-25":"Marek","04-26":"Oto","04-27":"Jaroslav","04-28":"Vlastislav","04-29":"Robert","04-30":"Blahoslav",
+  "05-01":"Svátek práce","05-02":"Zikmund","05-03":"Alexej","05-04":"Květoslav","05-05":"Klaudie","05-06":"Radoslav","05-07":"Stanislav","05-08":"Den vítězství","05-09":"Ctibor","05-10":"Blažena","05-11":"Svatava","05-12":"Pankrác","05-13":"Servác","05-14":"Bonifác","05-15":"Žofie","05-16":"Přemysl","05-17":"Aneta","05-18":"Nataša","05-19":"Ivo","05-20":"Zbyšek","05-21":"Monika","05-22":"Emil","05-23":"Vladimír","05-24":"Jana","05-25":"Viola","05-26":"Filip","05-27":"Valdemar","05-28":"Vilém","05-29":"Maxmilián","05-30":"Ferdinand","05-31":"Kamila",
+  "06-01":"Laura","06-02":"Jarmil","06-03":"Tamara","06-04":"Dalibor","06-05":"Dobroslav","06-06":"Norbert","06-07":"Iveta a Slavoj","06-08":"Medard","06-09":"Stanislava","06-10":"Gita","06-11":"Bruno","06-12":"Antonie","06-13":"Antonín","06-14":"Roland","06-15":"Vít","06-16":"Zbyněk","06-17":"Adolf","06-18":"Milan","06-19":"Leoš","06-20":"Květa","06-21":"Alois","06-22":"Pavla","06-23":"Zdeňka","06-24":"Jan","06-25":"Ivan","06-26":"Adriana","06-27":"Ladislav","06-28":"Lubomír","06-29":"Petr a Pavel","06-30":"Šárka",
+  "07-01":"Jaroslava","07-02":"Patricie","07-03":"Radomír","07-04":"Prokop","07-05":"Cyril a Metoděj","07-06":"Jan Hus","07-07":"Bohuslava","07-08":"Nora","07-09":"Drahoslava","07-10":"Libuše a Amálie","07-11":"Olga","07-12":"Bořek","07-13":"Markéta","07-14":"Karolína","07-15":"Jindřich","07-16":"Luboš","07-17":"Martina","07-18":"Drahomíra","07-19":"Čeněk","07-20":"Ilja","07-21":"Vítězslav","07-22":"Magdaléna","07-23":"Libor","07-24":"Kristýna","07-25":"Jakub","07-26":"Anna","07-27":"Věroslav","07-28":"Viktor","07-29":"Marta","07-30":"Bořivoj","07-31":"Ignác",
+  "08-01":"Oskar","08-02":"Gustav","08-03":"Miluše","08-04":"Dominik","08-05":"Kristián","08-06":"Oldřiška","08-07":"Lada","08-08":"Soběslav","08-09":"Roman","08-10":"Vavřinec","08-11":"Zuzana","08-12":"Klára","08-13":"Alena","08-14":"Alan","08-15":"Hana","08-16":"Jáchym","08-17":"Petra","08-18":"Helena","08-19":"Ludvík","08-20":"Bernard","08-21":"Johana","08-22":"Bohuslav","08-23":"Sandra","08-24":"Bartoloměj","08-25":"Radim","08-26":"Luděk","08-27":"Otakar","08-28":"Augustýn","08-29":"Evelína","08-30":"Vladěna","08-31":"Pavlína",
+  "09-01":"Linda a Samuel","09-02":"Adéla","09-03":"Bronislav","09-04":"Jindřiška","09-05":"Boris","09-06":"Boleslav","09-07":"Regína","09-08":"Mariana","09-09":"Daniela","09-10":"Irma","09-11":"Denisa","09-12":"Marie","09-13":"Lubor","09-14":"Radka","09-15":"Jolana","09-16":"Ludmila","09-17":"Naděžda","09-18":"Kryštof","09-19":"Zita","09-20":"Oleg","09-21":"Matouš","09-22":"Darina","09-23":"Berta","09-24":"Jaromír","09-25":"Zlata","09-26":"Andrea","09-27":"Jonáš","09-28":"Václav","09-29":"Michal","09-30":"Jeroným",
+  "10-01":"Igor","10-02":"Olívie a Oliver","10-03":"Bohumil","10-04":"František","10-05":"Eliška","10-06":"Hanuš","10-07":"Justýna","10-08":"Věra","10-09":"Štefan a Sára","10-10":"Marina","10-11":"Andrej","10-12":"Marcel","10-13":"Renáta","10-14":"Agáta","10-15":"Tereza","10-16":"Havel","10-17":"Hedvika","10-18":"Lukáš","10-19":"Michaela","10-20":"Vendelín","10-21":"Brigita","10-22":"Sabina","10-23":"Teodor","10-24":"Nina","10-25":"Beáta","10-26":"Erik","10-27":"Šarlota a Zoe","10-28":"Vznik ČSR","10-29":"Silvie","10-30":"Tadeáš","10-31":"Štěpánka",
+  "11-01":"Felix","11-02":"Památka zesnulých","11-03":"Hubert","11-04":"Karel","11-05":"Miriam","11-06":"Liběna","11-07":"Saskie","11-08":"Bohumír","11-09":"Bohdan","11-10":"Evžen","11-11":"Martin","11-12":"Benedikt","11-13":"Tibor","11-14":"Sáva","11-15":"Leopold","11-16":"Otmar","11-17":"Mahulena","11-18":"Romana","11-19":"Alžběta","11-20":"Nikola","11-21":"Albert","11-22":"Cecílie","11-23":"Klement","11-24":"Emílie","11-25":"Kateřina","11-26":"Artur","11-27":"Xenie","11-28":"René","11-29":"Zina","11-30":"Ondřej",
+  "12-01":"Iva","12-02":"Blanka","12-03":"Svatoslav","12-04":"Barbora","12-05":"Jitka","12-06":"Mikuláš","12-07":"Ambrož a Benjamín","12-08":"Květoslava","12-09":"Vratislav","12-10":"Julie","12-11":"Dana","12-12":"Simona","12-13":"Lucie","12-14":"Lýdie","12-15":"Radana a Radan","12-16":"Albína","12-17":"Daniel","12-18":"Miloslav","12-19":"Ester","12-20":"Dagmar","12-21":"Natálie","12-22":"Šimon","12-23":"Vlasta","12-24":"Adam a Eva","12-25":"Boží hod vánoční","12-26":"Štěpán","12-27":"Žaneta","12-28":"Bohumila","12-29":"Judita","12-30":"David","12-31":"Silvestr"
+};
+const _NAMEDAY_HOLIDAYS = new Set(["Nový rok","Tři králové","Svátek práce","Den vítězství","Jan Hus","Cyril a Metoděj","Vznik ČSR","Památka zesnulých","Mahulena","Boží hod vánoční","Adam a Eva"]);
+function namedayFor(d) {
+  const x = d || new Date();
+  const md = String(x.getMonth() + 1).padStart(2, "0") + "-" + String(x.getDate()).padStart(2, "0");
+  return NAMEDAYS[md] || "";
+}
+function _greetWord(h) {
+  if (h < 5) return "Dobrou noc";
+  if (h < 10) return "Dobré ráno";
+  if (h < 12) return "Dobré dopoledne";
+  if (h < 18) return "Dobré odpoledne";
+  return "Dobrý večer";
+}
+const _CZ_DAYS = ["neděle","pondělí","úterý","středa","čtvrtek","pátek","sobota"];
+const _CZ_MON_GEN = ["ledna","února","března","dubna","května","června","července","srpna","září","října","listopadu","prosince"];
+function hubGreetingHTML() {
+  const now = new Date();
+  const name = namedayFor(now);
+  const dateStr = `dnes je ${_CZ_DAYS[now.getDay()]} ${now.getDate()}. ${_CZ_MON_GEN[now.getMonth()]} ${now.getFullYear()}`;
+  let svatek = "";
+  if (name) {
+    svatek = _NAMEDAY_HOLIDAYS.has(name)
+      ? ` · ${esc(name)}`
+      : `, svátek má <span class="nameday">${esc(name)}</span>`;
+  }
+  return `${_greetWord(now.getHours())} 👋<br>${dateStr}${svatek}`;
+}
+
+// ============================================================
+// OBLÍBENÉ DLAŽDICE (localStorage)
+// ============================================================
+function favGet() { try { return JSON.parse(localStorage.getItem("hubFavs") || "[]"); } catch (e) { return []; } }
+function favHas(key) { return favGet().indexOf(key) !== -1; }
+function favToggle(key) {
+  let f = favGet();
+  const i = f.indexOf(key);
+  if (i === -1) f.push(key); else f.splice(i, 1);
+  try { localStorage.setItem("hubFavs", JSON.stringify(f)); } catch (e) {}
+  renderHub();
+}
+
+// ============================================================
+// HLEDÁNÍ SEKCÍ
+// ============================================================
+function _normTxt(s) { return String(s || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, ""); }
+function hubSearchFilter(q) {
+  const norm = _normTxt(q).trim();
+  const tiles = document.querySelectorAll("#hubTiles .hub-tile");
+  let shown = 0;
+  tiles.forEach(t => {
+    const hay = _normTxt(t.getAttribute("data-search") || "");
+    const hit = !norm || hay.indexOf(norm) !== -1;
+    t.classList.toggle("hidden", !hit);
+    if (hit) shown++;
+  });
+  const empty = document.getElementById("hubEmpty");
+  if (empty) empty.style.display = shown === 0 ? "block" : "none";
+}
+
 function renderHub() {
+  applyTheme(); bindThemeMql();
+  const greet = document.getElementById("hubGreet");
+  if (greet) greet.innerHTML = hubGreetingHTML();
   const wrap = document.getElementById("hubTiles");
   if (!wrap || !DB) return;
-  wrap.innerHTML = Object.keys(MODULES).map(key => {
+  const favs = favGet();
+  const keys = Object.keys(MODULES).slice().sort((a, b) => {
+    const fa = favs.indexOf(a) !== -1, fb = favs.indexOf(b) !== -1;
+    if (fa !== fb) return fa ? -1 : 1;
+    return Object.keys(MODULES).indexOf(a) - Object.keys(MODULES).indexOf(b);
+  });
+  wrap.innerHTML = keys.map(key => {
     const m = MODULES[key];
     let status = "";
     if (!m.soon && m.status) { try { status = m.status(); } catch (e) { status = ""; } }
@@ -4958,14 +5286,19 @@ function renderHub() {
       ? `<div class="tile-soon">Brzy</div>`
       : `<div class="tile-status">${esc(status)}</div>`;
     const click = m.soon ? "" : `onclick="enterModule('${key}')"`;
+    const isFav = favs.indexOf(key) !== -1;
+    const star = `<button class="tile-fav ${isFav ? "on" : ""}" onclick="event.stopPropagation(); favToggle('${key}')" title="${isFav ? "Odebrat z oblíbených" : "Přidat do oblíbených"}" aria-label="Oblíbené">${isFav ? "★" : "☆"}</button>`;
     return `
-      <div class="hub-tile ${m.soon ? "disabled" : ""}" ${click}>
+      <div class="hub-tile ${m.soon ? "disabled" : ""} ${isFav ? "is-fav" : ""}" data-search="${esc(m.label + " " + key)}" ${click}>
+        ${star}
         <div class="tile-bar" style="background:${m.color}"></div>
         <div class="tile-icon">${m.icon}</div>
         <div class="tile-name">${esc(m.label)}</div>
         ${footer}
       </div>`;
-  }).join("");
+  }).join("") + `<div class="hub-empty" id="hubEmpty" style="display:none">Nic nenalezeno.</div>`;
+  const sv = document.getElementById("hubSearch");
+  if (sv && sv.value) hubSearchFilter(sv.value);
   const cal = document.getElementById("hubCalendar");
   if (cal) cal.innerHTML = renderHubCalendar();
   startReminderLoop();
@@ -6341,7 +6674,6 @@ document.addEventListener("DOMContentLoaded", () => {
 });
 
 // Když se SDK načte později (po DOMContentLoaded), nic neděláme — initFirebase si na to počká.
-
 </script>
 <div id="chartTip"></div>
 <button id="undoFab" onclick="undoLast()" style="display:none">↶ Zpět</button>
