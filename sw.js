@@ -1,6 +1,6 @@
 // Service worker pro "Náš systém"
 // Cíl: instalovatelnost (PWA) + offline načtení appky. Data (Firebase) jdou vždy ze sítě.
-const CACHE = "nas-system-v1";
+const CACHE = "nas-system-v4";
 const SHELL = ["./", "./index.html", "./icon-192.png", "./icon-512.png", "./apple-touch-icon.png"];
 
 self.addEventListener("install", (e) => {
