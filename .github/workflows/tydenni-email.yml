@@ -1,0 +1,27 @@
+name: Pondělní e-mail s úkoly na týden
+
+on:
+  schedule:
+    # Pondělí 5:30 UTC = 6:30 v zimě / 7:30 v létě (Praha)
+    - cron: "30 5 * * 1"
+  workflow_dispatch: {}   # ruční spuštění pro vyzkoušení (záložka Actions → Run workflow)
+
+jobs:
+  send:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - run: npm install firebase-admin@12 nodemailer@6 --no-save
+        working-directory: notify
+      - run: node send_weekly_email.mjs
+        working-directory: notify
+        env:
+          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+          SMTP_HOST: ${{ secrets.SMTP_HOST }}
+          SMTP_PORT: ${{ secrets.SMTP_PORT }}
+          SMTP_USER: ${{ secrets.SMTP_USER }}
+          SMTP_PASS: ${{ secrets.SMTP_PASS }}
+          MAIL_TO: ${{ secrets.MAIL_TO }}
