@@ -1408,6 +1408,8 @@ mark { background: var(--yellow-bg); color: var(--ink); padding: 0 2px; border-r
   input, select, textarea { font-size: 16px; }
 }
 
+.auth-email { font-size: 12px; color: var(--ink-muted); margin: -6px 0 10px; }
+.auth-email button { background: none; border: none; color: var(--sec, var(--accent)); font-size: 12px; cursor: pointer; text-decoration: underline; padding: 0; }
 .auth-forgot { background: none; border: none; color: var(--ink-muted); font-size: 12px; margin-top: 12px; cursor: pointer; text-decoration: underline; }
 .auth-forgot:hover { color: var(--ink); }
 
@@ -1455,6 +1457,7 @@ mark { background: var(--yellow-bg); color: var(--ink); padding: 0 2px; border-r
   <div class="auth-card">
     <div class="auth-title">Náš systém</div>
     <div class="auth-subtitle">Rodinný hub · zadej heslo pro přístup</div>
+    <div class="auth-email" id="authEmailInfo"></div>
     <input type="password" class="auth-input" id="authInput" placeholder="Heslo" autofocus>
     <button class="auth-btn" onclick="tryUnlock()">Odemknout</button>
     <button type="button" class="auth-forgot" onclick="forgotPassword()">Zapomenuté heslo?</button>
@@ -1820,6 +1823,7 @@ function tryUnlock() {
     loginEmail = (prompt("Zadej přihlašovací e-mail (uloží se jen v tomto zařízení):") || "").trim();
     if (!loginEmail) { error.textContent = "Bez e-mailu se nelze přihlásit."; return; }
     try { localStorage.setItem("famEmail", loginEmail); } catch (e) {}
+    updateAuthEmailInfo();
   }
 
   error.textContent = "";
@@ -1836,13 +1840,36 @@ function tryUnlock() {
         error.textContent = "Chyba sítě — zkontroluj připojení k internetu.";
       } else if (code === "auth/invalid-email" || code === "auth/user-not-found") {
         try { localStorage.removeItem("famEmail"); } catch (e) {}
-        error.textContent = "E-mail nesedí — zkus to znovu, appka se na něj zeptá.";
+        updateAuthEmailInfo();
+        error.textContent = "Tento e-mail ve Firebase není — klikni nahoře na „změnit“ a zadej správný.";
       } else {
-        error.textContent = "Špatné heslo.";
+        error.textContent = "Nesedí heslo, nebo e-mail „" + loginEmail + "“ není ten správný účet. E-mail změníš odkazem nahoře; heslo přes „Zapomenuté heslo?“.";
       }
       input.value = "";
       input.focus();
     });
+}
+
+function savedLoginEmail() {
+  let e = FAMILY_EMAIL;
+  try { e = e || localStorage.getItem("famEmail") || ""; } catch (x) {}
+  return e;
+}
+function updateAuthEmailInfo() {
+  const el = document.getElementById("authEmailInfo");
+  if (!el) return;
+  const e = savedLoginEmail();
+  el.innerHTML = e
+    ? 'Přihlašuješ se jako <b>' + esc(e) + '</b> · <button type="button" onclick="changeLoginEmail()">změnit</button>'
+    : 'Po kliknutí na Odemknout se appka zeptá na přihlašovací e-mail.';
+}
+function changeLoginEmail() {
+  const cur = savedLoginEmail();
+  const e = (prompt("Přihlašovací e-mail (najdeš ho ve Firebase → Authentication → Users):", cur) || "").trim();
+  if (e) { try { localStorage.setItem("famEmail", e); } catch (x) {} }
+  else { try { localStorage.removeItem("famEmail"); } catch (x) {} }
+  updateAuthEmailInfo();
+  const err = document.getElementById("authError"); if (err) err.textContent = "";
 }
 
 function forgotPassword() {
@@ -6647,6 +6674,7 @@ document.addEventListener("DOMContentLoaded", () => {
   });
 
   // Heslo: Enter = odeslat
+  updateAuthEmailInfo();
   const authInput = document.getElementById("authInput");
   if (authInput) {
     authInput.addEventListener("keydown", e => {
